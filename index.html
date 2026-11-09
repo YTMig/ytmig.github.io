@@ -2,211 +2,201 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#24170d">
-<title>Parkour com João Simões Lopes Neto</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Travessia do Pampa · Parkour com Simões Lopes Neto</title>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  html,body{
-    width:100%;height:100%;overflow:hidden;background:#24170d;
-    touch-action:none;user-select:none;-webkit-user-select:none;overscroll-behavior:none;
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body {
+    width:100%; height:100%; overflow:hidden; background:#24170d;
+    font-family:Georgia,'Trebuchet MS',serif; color:#f4ead5;
+    -webkit-user-select:none; user-select:none;
   }
-  body{font-family:Georgia,'Trebuchet MS',serif;color:#f4ead5}
+  #game { position:fixed; left:0; top:0; width:100%; height:100%; display:block; }
 
-  /* Canvas ocupa a tela inteira, sem borda */
-  #game{position:fixed;left:0;top:0;width:100vw;height:100vh;height:100dvh;display:block}
-
-  .overlay{
-    position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;text-align:center;
-    background:rgba(18,11,6,.9);padding:clamp(12px,3vw,28px);overflow-y:auto;
+  .overlay {
+    position:fixed; top:0; left:0; right:0; bottom:0; z-index:10;
+    background:rgba(18,11,6,.92); text-align:center;
+    padding:16px; overflow-y:auto;
   }
-  .hidden{display:none !important}
-  h1{color:#e8b44a;font-size:clamp(22px,4.6vw,40px);margin-bottom:.2em}
-  h2{color:#e8b44a;font-size:clamp(15px,2.6vw,21px);margin:.3em 0}
-  p{max-width:660px;line-height:1.5;font-size:clamp(13px,2vw,16px);margin:.45em 0}
-  .keys{color:#cdb98f;font-size:clamp(12px,1.7vw,14px)}
-  .btn{
-    background:linear-gradient(#f0c15a,#b07a22);color:#2b1a08;border:0;
-    padding:12px 30px;border-radius:10px;font:bold 17px Georgia,serif;
-    cursor:pointer;margin-top:14px;box-shadow:0 4px 0 #6b4612;
+  .overlay .box { padding-top:30px; }
+  .hidden { display:none !important; }
+  h1 { color:#e8b44a; font-size:30px; margin-bottom:6px; }
+  h2 { color:#e8b44a; font-size:19px; margin:6px 0; }
+  p  { max-width:620px; margin:8px auto; line-height:1.5; font-size:15px; }
+  .keys { color:#cdb98f; font-size:13px; }
+  .btn {
+    display:inline-block; background:#c9962e; color:#2b1a08; border:0;
+    padding:12px 28px; border-radius:10px; font:bold 17px Georgia,serif;
+    margin:8px 6px 0 6px; cursor:pointer;
   }
-  .btn:active{transform:translateY(2px);box-shadow:0 2px 0 #6b4612}
-  .opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:min(680px,96%);margin-top:12px}
-  .opt{
-    background:#2d2016;color:#f4ead5;border:2px solid #7a5530;border-radius:10px;
-    padding:12px 14px;font:clamp(13px,1.9vw,16px) Georgia,serif;cursor:pointer;
-    text-align:left;min-height:48px;
+  .btn.alt { background:#8a6a3a; color:#f4ead5; }
+  .opts { width:100%; max-width:640px; margin:12px auto 0 auto; }
+  .opt {
+    display:block; width:100%; margin:6px 0; background:#2d2016; color:#f4ead5;
+    border:2px solid #7a5530; border-radius:10px; padding:12px 14px;
+    font:15px Georgia,serif; text-align:left; cursor:pointer;
   }
-  .opt:hover:not(:disabled){border-color:#e8b44a}
-  .opt:disabled{cursor:default}
-  .opt.correct{background:#2f6b2c;border-color:#8fd47f}
-  .opt.wrong{background:#7a2a1f;border-color:#e07a66}
-  .feedback{
-    margin-top:14px;max-width:680px;line-height:1.5;font-size:clamp(13px,1.9vw,15px);
-    background:rgba(255,255,255,.07);padding:12px 16px;border-radius:10px;
+  .opt.correct { background:#2f6b2c; border-color:#8fd47f; }
+  .opt.wrong { background:#7a2a1f; border-color:#e07a66; }
+  .feedback {
+    margin:12px auto 0 auto; max-width:640px; line-height:1.5; font-size:15px;
+    background:rgba(255,255,255,.08); padding:12px; border-radius:10px;
   }
 
-  /* Barra de botões no canto superior direito */
-  .topBtn{
-    position:fixed;top:8px;z-index:20;background:rgba(0,0,0,.45);color:#fff3d6;
-    border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:6px 10px;
-    font:14px Georgia,serif;cursor:pointer;white-space:nowrap;
+  .topBtn {
+    position:fixed; top:8px; z-index:20; background:rgba(0,0,0,.5); color:#fff3d6;
+    border:1px solid rgba(255,255,255,.35); border-radius:8px; padding:6px 10px;
+    font:14px Georgia,serif; cursor:pointer;
   }
-  #fsBtn{right:8px}
-  #gfxBtn{right:130px}
-  #fpsBox{
-    position:fixed;top:44px;right:8px;z-index:20;color:#fff3d6;background:rgba(0,0,0,.35);
-    padding:2px 8px;border-radius:6px;font:12px monospace;pointer-events:none;
+  #fsBtn { right:8px; }
+  #gfxBtn { right:130px; }
+  #fpsBox {
+    position:fixed; top:44px; right:8px; z-index:20; color:#fff3d6;
+    background:rgba(0,0,0,.4); padding:2px 8px; border-radius:6px;
+    font:12px monospace;
   }
 
-  /* Aviso para girar o celular */
-  #rotate{
-    position:fixed;inset:0;z-index:30;display:none;flex-direction:column;
-    align-items:center;justify-content:center;background:#120b06;text-align:center;padding:20px;
+  #touch { position:fixed; left:0; right:0; bottom:0; z-index:15; display:none; height:110px; }
+  body.touch #touch { display:block; }
+  .tbtn {
+    position:absolute; bottom:14px; width:76px; height:76px; border-radius:50%;
+    background:rgba(255,240,200,.2); border:2px solid rgba(255,240,200,.5);
+    color:#fff; font:bold 24px Georgia,serif; text-align:center; line-height:72px;
+    -webkit-user-select:none; user-select:none;
   }
-  @media (orientation:portrait) and (pointer:coarse){ #rotate{display:flex} }
-
-  /* Controles de toque */
-  #touch{
-    position:fixed;left:0;right:0;bottom:0;z-index:15;display:none;
-    justify-content:space-between;align-items:flex-end;
-    padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));pointer-events:none;
-  }
-  body.touch #touch{display:flex}
-  .grp{display:flex;gap:12px;align-items:flex-end}
-  .tbtn{
-    pointer-events:auto;width:76px;height:76px;border-radius:50%;
-    background:rgba(255,240,200,.16);border:2px solid rgba(255,240,200,.45);color:#fff;
-    font:bold 24px Georgia,serif;display:flex;align-items:center;justify-content:center;
-    touch-action:none;transition:opacity .15s;
-  }
-  .tbtn.small{width:62px;height:62px;font-size:20px}
-  .tbtn.dash{font-size:14px;letter-spacing:.5px}
-  .tbtn.on{background:rgba(232,180,74,.55)}
+  .tbtn.small { width:62px; height:62px; line-height:58px; font-size:14px; bottom:22px; }
+  .tbtn.on { background:rgba(232,180,74,.7); }
+  #bLeft  { left:14px; }
+  #bRight { left:100px; }
+  #bJump  { right:14px; }
+  #bDash  { right:100px; bottom:22px; }
 </style>
 </head>
 <body>
 
 <canvas id="game"></canvas>
-<button id="fsBtn" class="topBtn">⛶ Tela cheia</button>
+<button id="fsBtn" class="topBtn">Tela cheia</button>
 <button id="gfxBtn" class="topBtn">Gráficos: Baixo</button>
 <div id="fpsBox">FPS: --</div>
 
 <div id="touch">
-  <div class="grp">
-    <button class="tbtn" data-k="left">◀</button>
-    <button class="tbtn" data-k="right">▶</button>
-  </div>
-  <div class="grp">
-    <button class="tbtn small dash" data-k="dash">DASH</button>
-    <button class="tbtn" data-k="jump">⬆</button>
-  </div>
+  <button class="tbtn" id="bLeft" data-k="left">&#9664;</button>
+  <button class="tbtn" id="bRight" data-k="right">&#9654;</button>
+  <button class="tbtn small" id="bDash" data-k="dash">DASH</button>
+  <button class="tbtn" id="bJump" data-k="jump">&#8679;</button>
 </div>
-
-<div id="rotate"><div><h2>Gire o celular</h2><p>Para jogar em tela cheia, use o celular na horizontal.</p></div></div>
 
 <!-- MENU -->
 <div id="menu" class="overlay">
-  <h1>Travessia do Pampa</h1>
-  <h2>Parkour gauchesco com Simões Lopes Neto</h2>
-  <p>Atravesse 10 fases inspiradas nas paisagens, lendas e personagens da obra do autor. Ao chegar ao fim de cada fase, responda a um quiz. Se você acertar as <b>10 perguntas</b>, ganha <b>1 doce 🍬 de verdade</b> no final.</p>
-  <p class="keys"><b>Teclado:</b> ← → ou A D andam · Espaço, ↑ ou W pulam (pulo duplo no ar) · <b>Q</b> dá dash · P pausa</p>
-  <p class="keys"><b>Quiz:</b> clique na alternativa ou use as teclas 1, 2, 3 e 4</p>
-  <p class="keys"><b>Celular:</b> use os botões na tela. Ao iniciar, o jogo tenta entrar em tela cheia.</p>
-  <button id="btnStart" class="btn">Começar</button>
+  <div class="box">
+    <h1>Travessia do Pampa</h1>
+    <h2>Parkour gauchesco com Simões Lopes Neto</h2>
+    <p>Atravesse 10 fases inspiradas nas paisagens, lendas e personagens da obra do autor. Ao chegar ao fim de cada fase, responda a um quiz. Se você acertar as <b>10 perguntas</b>, ganha <b>1 doce de verdade</b> no final.</p>
+    <p class="keys"><b>Teclado:</b> setas ou A/D andam, Espaço ou W pulam, Q dá dash, P pausa.</p>
+    <p class="keys"><b>Quiz:</b> clique na alternativa ou use as teclas 1, 2, 3 e 4.</p>
+    <p class="keys"><b>Celular e Switch:</b> use os botões na tela.</p>
+    <button id="btnChar" class="btn alt">Personagem: Gaúcho</button>
+    <br>
+    <button id="btnStart" class="btn">Começar</button>
+  </div>
 </div>
 
 <!-- QUIZ -->
 <div id="quiz" class="overlay hidden">
-  <h2 id="qTitle"></h2>
-  <p id="qText" style="font-size:clamp(15px,2.3vw,19px)"></p>
-  <div id="qOpts" class="opts"></div>
-  <div id="qFeedback" class="feedback hidden"></div>
-  <button id="qNext" class="btn hidden">Próximo nível ➜</button>
+  <div class="box">
+    <h2 id="qTitle"></h2>
+    <p id="qText" style="font-size:18px"></p>
+    <div id="qOpts" class="opts"></div>
+    <div id="qFeedback" class="feedback hidden"></div>
+    <button id="qNext" class="btn hidden">Próximo nível</button>
+  </div>
 </div>
 
 <!-- PAUSA -->
 <div id="pause" class="overlay hidden">
-  <h1>Pausado</h1>
-  <p>Respire um pouco. O pampa espera.</p>
-  <button id="btnResume" class="btn">Continuar</button>
+  <div class="box">
+    <h1>Pausado</h1>
+    <p>Respire um pouco. O pampa espera.</p>
+    <button id="btnResume" class="btn">Continuar</button>
+  </div>
 </div>
 
 <!-- GAME OVER -->
 <div id="gameover" class="overlay hidden">
-  <h1>Game Over</h1>
-  <p>Suas vidas acabaram, mas toda travessia começa de novo.</p>
-  <p>Pontuação final: <b id="goScore">0</b></p>
-  <button id="btnRestart" class="btn">Reiniciar</button>
+  <div class="box">
+    <h1>Game Over</h1>
+    <p>Suas vidas acabaram, mas toda travessia começa de novo.</p>
+    <p>Pontuação final: <b id="goScore">0</b></p>
+    <button id="btnRestart" class="btn">Reiniciar</button>
+  </div>
 </div>
 
 <!-- VITÓRIA -->
 <div id="win" class="overlay hidden">
-  <h1>Travessia concluída!</h1>
-  <p>Você atravessou as 10 fases e conheceu um pouco da obra de Simões Lopes Neto.</p>
-  <p>Pontuação final: <b id="winScore">0</b></p>
-  <p>Perguntas certas: <b id="winCorrect">0</b> de 10</p>
-  <p id="winDoce"></p>
-  <button id="btnWinRestart" class="btn">Jogar de novo</button>
+  <div class="box">
+    <h1>Travessia concluída!</h1>
+    <p>Você atravessou as 10 fases e conheceu um pouco da obra de Simões Lopes Neto.</p>
+    <p>Pontuação final: <b id="winScore">0</b></p>
+    <p>Perguntas certas: <b id="winCorrect">0</b> de 10</p>
+    <p id="winDoce"></p>
+    <button id="btnWinRestart" class="btn">Jogar de novo</button>
+  </div>
 </div>
 
 <script>
 /* =========================================================
    CONFIGURAÇÃO
    ========================================================= */
-const $ = id => document.getElementById(id);
-const canvas = $('game');
-const ctx = canvas.getContext('2d');
+var $ = function (id) { return document.getElementById(id); };
+var canvas = $('game');
+var ctx = canvas.getContext('2d');
 
-const H = 480;                 // altura lógica do mundo
-const G = 0.55;                // gravidade
-const JUMP = -11.2;            // força do pulo
-const JUMP_CUT = -3.2;         // corte do pulo ao soltar a tecla
-const MAX_FALL = 14;           // queda máxima
-const SPEED = 4.2;             // velocidade horizontal
-const DASH_V = 10;             // velocidade do dash
-const DASH_FRAMES = 12;        // duração do dash em frames
-const DASH_COOLDOWN = 45;      // espera entre dashes
-const PW = 26, PH = 40;        // tamanho do jogador
-const GROUND_Y = 400;          // topo do chão
-const STEP = 1000 / 60;        // passo fixo da física (60 atualizações por segundo)
-const FPS_CAP = 0;             // limite de FPS: 0 = sem limite; ex.: 30, 60, 120, 144
-const MIN_VW = 600;            // menor largura visível do mundo
-const LIVES_MAX = 3;
-const QUIZ_DELAY = 700;        // ms até o quiz aceitar resposta
+var H = 480;
+var G = 0.55;
+var JUMP = -11.2;
+var JUMP_CUT = -3.2;
+var MAX_FALL = 14;
+var SPEED = 4.2;
+var DASH_V = 10;
+var DASH_FRAMES = 12;
+var DASH_COOLDOWN = 45;
+var PW = 26, PH = 40;
+var GROUND_Y = 400;
+var STEP = 1000 / 60;
+var FPS_CAP = 0;              // 0 = sem limite (o navegador limita à taxa da tela)
+var MIN_VW = 600;
+var LIVES_MAX = 3;
+var QUIZ_DELAY = 700;
 
-/* Qualidade gráfica: começa sempre em "low" */
-const QUALITY = {
-  low:    { label:'Baixo',  dpr:1,   stars:0,  clouds:4, dust:0,  vignette:false, shadow:false, grass:14, burst:0.5 },
-  medium: { label:'Médio',  dpr:1.5, stars:35, clouds:9, dust:15, vignette:true,  shadow:true,  grass:9,  burst:1 },
-  high:   { label:'Alto',   dpr:2,   stars:70, clouds:9, dust:40, vignette:true,  shadow:true,  grass:7,  burst:1 }
+var QUALITY = {
+  low:    { label:'Baixo', dpr:1,   stars:0,  clouds:4, dust:0,  vignette:false, shadow:false, grass:14 },
+  medium: { label:'Médio', dpr:1.5, stars:35, clouds:9, dust:15, vignette:true,  shadow:true,  grass:9 },
+  high:   { label:'Alto',  dpr:2,   stars:70, clouds:9, dust:40, vignette:true,  shadow:true,  grass:7 }
 };
-const QORDER = ['low', 'medium', 'high'];
-let quality = 'low';
-const Q = () => QUALITY[quality];
+var QORDER = ['low', 'medium', 'high'];
+var quality = 'low';
+function Q() { return QUALITY[quality]; }
 
-/* Frase secreta (digitada no teclado) */
-const SECRET = 'bentoguloso';
-let secretBuf = '';
+/* Personagens originais (nenhum é uma pessoa real) */
+var CHARS = [
+  { name:'Gaúcho',  poncho:['#c4482f','#7e2618'], band:'#e8b44a', lenco:'#e0572f', hat:'#2b1d12', hatType:'wide', dress:false },
+  { name:'Chasque', poncho:['#3b6ea5','#1f3d5c'], band:'#e8b44a', lenco:'#e8b44a', hat:'#5a3d22', hatType:'cap',  dress:false },
+  { name:'Peão',    poncho:['#8a6a3a','#4f3a1f'], band:'#f4ead5', lenco:'#f4ead5', hat:'#3a2a18', hatType:'wide', dress:false },
+  { name:'Prenda',  poncho:['#c2557a','#7a2a48'], band:'#e8b44a', lenco:'#e8b44a', hat:'#3a2418', hatType:'none', dress:true  }
+];
+var charIdx = 0;
+function CH() { return CHARS[charIdx]; }
 
-/* Fases: nome e uma frase que liga cada fase à obra */
-const LEVELS = [
-  { name:'Pelotas, terra natal', info:'Os primeiros passos pela cidade onde o autor nasceu e viveu.' },
-  { name:'Campos do Sul', info:'O pampa aberto, onde o vento nunca para de soprar.' },
-  { name:'O Chasque', info:'O mensageiro que cruza distâncias a cavalo, sem descanso.' },
-  { name:'Coxilhas Verdes', info:'Subidas e descidas do relevo gaúcho, com a paisagem por todo lado.' },
-  { name:'Galpão Antigo', info:'A roda de chimarrão e as histórias contadas ao redor do fogo.' },
-  { name:'Passo do Rio', info:'A travessia pelas águas, como nos contos do interior.' },
-  { name:'Negrinho do Pastoreio', info:'A lenda de um menino e a busca pelos cavalos perdidos.' },
-  { name:'Querência', info:'O retorno ao lar, um tema constante na tradição gaúcha.' },
-  { name:'Serenata do Pampa', info:'Noite de violão e estrelas sobre a planície.' },
-  { name:'Sol do Entardecer', info:'A última cavalgada da travessia, com o céu em tons de laranja.' }
+var SECRET = 'daviculpado';
+var secretBuf = '';
+
+var LEVELS = [
+  'Pelotas, terra natal', 'Campos do Sul', 'O Chasque', 'Coxilhas Verdes',
+  'Galpão Antigo', 'Passo do Rio', 'Negrinho do Pastoreio', 'Querência',
+  'Serenata do Pampa', 'Sol do Entardecer'
 ];
 
-/* Perguntas: q = pergunta, o = alternativas, a = índice correto, e = explicação */
-const QUIZ = [
+var QUIZ = [
   { q:'Qual obra, publicada em 1912, reúne contos sobre o homem do campo gaúcho?',
     o:['Dom Quixote','Contos Gauchescos','Os Sertões','Vidas Secas'], a:1,
     e:'Contos Gauchescos (1912) retrata o gaúcho e o cotidiano do campo com linguagem regional.' },
@@ -245,109 +235,98 @@ const QUIZ = [
 function mulberry32(a){
   return function(){
     a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
     t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
 }
-/* hash determinístico para variar grama, estrelas e árvores sem aleatoriedade por frame */
-function hash(n){ const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
-
+function hash(n){ var s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
 function overlap(ax, ay, aw, ah, bx, by, bw, bh){
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
-function hit(a, b){ return overlap(a.x, a.y, a.w, a.h, b.x, b.y, b.w, b.h); }
 
 /* =========================================================
-   GERADOR DE FASES (determinístico: mesma semente, mesma fase)
+   GERADOR DE FASES (determinístico)
    ========================================================= */
 function buildLevel(i){
-  const rnd = mulberry32(4242 + i * 97);
-  const diff = i / 9;                           // 0 (fácil) até 1 (difícil)
-  const plats = [{ x:0, y:GROUND_Y, w:420 }];
-  let x = 420, y = GROUND_Y;
-  const target = 2300 + i * 180;
+  var rnd = mulberry32(4242 + i * 97);
+  var diff = i / 9;
+  var plats = [{ x:0, y:GROUND_Y, w:420 }];
+  var x = 420, y = GROUND_Y;
+  var target = 2300 + i * 180;
 
   while (x < target){
-    x += 55 + rnd() * (35 + diff * 50);         // abismo
-    let ny = rnd() < 0.4 ? GROUND_Y : 250 + rnd() * 110;
-    ny = Math.max(ny, y - 80);                  // altura máxima de salto
-    const w = 110 + rnd() * (180 - diff * 50);
-    plats.push({ x, y:ny, w });
+    x += 55 + rnd() * (35 + diff * 50);
+    var ny = rnd() < 0.4 ? GROUND_Y : 250 + rnd() * 110;
+    ny = Math.max(ny, y - 80);
+    var w = 110 + rnd() * (180 - diff * 50);
+    plats.push({ x:x, y:ny, w:w });
     x += w; y = ny;
   }
   x += 55 + rnd() * 35;
-  plats.push({ x, y:GROUND_Y, w:260 });         // chão final
-  const goalX = x + 200;
+  plats.push({ x:x, y:GROUND_Y, w:260 });
+  var goalX = x + 200;
 
-  plats.forEach(pl => pl.h = pl.y >= GROUND_Y ? 80 : 22);
+  for (var k = 0; k < plats.length; k++){
+    plats[k].h = plats[k].y >= GROUND_Y ? 80 : 22;
+  }
 
-  const hazards = [], coins = [], cps = [];
-  plats.forEach((pl, k) => {
-    if (k === 0) return;
-    if (k % 4 === 2) cps.push({ at:pl.x + 10, sx:pl.x + 20, sy:pl.y - PH, reached:false });
+  var hazards = [], coins = [], cps = [];
+  for (var j = 1; j < plats.length; j++){
+    var pl = plats[j];
+    if (j % 4 === 2) cps.push({ at:pl.x + 10, sx:pl.x + 20, sy:pl.y - PH, reached:false });
     if (pl.w >= 180 && rnd() < 0.15 + diff * 0.2){
-      const hx = pl.x + 90 + rnd() * (pl.w - 140);
-      hazards.push({ x:hx, y:pl.y - 12, w:26, h:12 });
+      hazards.push({ x:pl.x + 90 + rnd() * (pl.w - 140), y:pl.y - 12, w:26, h:12 });
     }
     if (rnd() < 0.5) coins.push({ x:pl.x + pl.w / 2, y:pl.y - 50, taken:false });
-  });
-
-  return { plats, hazards, coins, cps, goalX, len:goalX + 200 };
+  }
+  return { plats:plats, hazards:hazards, coins:coins, cps:cps, goalX:goalX, len:goalX + 200 };
 }
 
 /* =========================================================
    ESTADO
-   Estados: menu -> playing <-> paused
-                    -> quiz -> playing (próxima fase) ... -> win
-                    -> gameover
    ========================================================= */
-let state = 'menu';
-let levelIdx = 0, lives = LIVES_MAX, score = 0, correctCount = 0;
-let answered = false;
-let quizReadyAt = 0;            // instante a partir do qual o quiz aceita respostas
-let level = null, p = null, cam = 0;
-let t = 0, banner = 0, bannerText = '', flash = 0;
-const particles = [];
-const dust = [];                // poeira do pampa em parallax
+var state = 'menu';
+var levelIdx = 0, lives = LIVES_MAX, score = 0, correctCount = 0;
+var answered = false, quizReadyAt = 0;
+var level = null, p = null, cam = 0;
+var t = 0, banner = 0, bannerText = '', flash = 0;
+var particles = [];
+var dust = [];
 
-/* Dimensões do canvas e escala (preenche a tela inteira) */
-let CW = 0, CH = 0, SCALE = 1, OFFY = 0, VW = 800;
+var CW = 0, CH = 0, SCALE = 1, OFFY = 0, VW = 800;
 function resize(){
-  const dpr = Math.min(window.devicePixelRatio || 1, Q().dpr);
-  CW = Math.round(innerWidth * dpr);
-  CH = Math.round(innerHeight * dpr);
+  var dpr = Math.min(window.devicePixelRatio || 1, Q().dpr);
+  CW = Math.round(window.innerWidth * dpr);
+  CH = Math.round(window.innerHeight * dpr);
   canvas.width = CW;
   canvas.height = CH;
   SCALE = Math.min(CH / H, CW / MIN_VW);
-  VW = CW / SCALE;                 // largura visível do mundo
-  OFFY = (CH - H * SCALE) / 2;     // centraliza verticalmente
+  VW = CW / SCALE;
+  OFFY = (CH - H * SCALE) / 2;
 }
 
-/* Entradas: teclado e botões de toque usam o mesmo mapa.
-   Dash = tecla Q (no toque, o botão DASH). */
-const inp = { left:false, right:false, jump:false, dash:false };
-const KEYMAP = {
+var inp = { left:false, right:false, jump:false };
+var KEYMAP = {
   ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right',
-  Space:'jump', ArrowUp:'jump', KeyW:'jump',
-  KeyQ:'dash'
+  Space:'jump', ArrowUp:'jump', KeyW:'jump', KeyQ:'dash'
 };
 
 function makePlayer(x, y){
-  return { x, y, vx:0, vy:0, onGround:false, coyote:0, jumpBuf:0, airJumps:1,
-           facing:1, invuln:0, dashT:0, dashCd:0, cp:{ x, y } };
+  return { x:x, y:y, vx:0, vy:0, onGround:false, coyote:0, jumpBuf:0, airJumps:1,
+           facing:1, invuln:0, dashT:0, dashCd:0, cp:{ x:x, y:y } };
 }
 
 function burst(x, y, color, n){
-  const count = Math.max(1, Math.round(n * Q().burst));
-  for (let i = 0; i < count; i++){
-    particles.push({ x, y, vx:(Math.random() - 0.5) * 5, vy:(Math.random() - 0.9) * 5,
-                     life:28 + Math.random() * 20, color });
+  var count = Math.max(1, Math.round(n * (quality === 'low' ? 0.5 : 1)));
+  for (var i = 0; i < count && particles.length < 120; i++){
+    particles.push({ x:x, y:y, vx:(Math.random() - 0.5) * 5, vy:(Math.random() - 0.9) * 5,
+                     life:28 + Math.random() * 20, color:color });
   }
 }
 function updateParticles(){
-  for (let i = particles.length - 1; i >= 0; i--){
-    const q = particles[i];
+  for (var i = particles.length - 1; i >= 0; i--){
+    var q = particles[i];
     q.x += q.vx; q.y += q.vy; q.vy += 0.2; q.life--;
     if (q.life <= 0) particles.splice(i, 1);
   }
@@ -355,9 +334,10 @@ function updateParticles(){
 function toast(msg){ bannerText = msg; banner = 110; }
 
 function showOnly(id){
-  document.querySelectorAll('.overlay').forEach(el => el.classList.add('hidden'));
+  var overlays = document.querySelectorAll('.overlay');
+  for (var i = 0; i < overlays.length; i++) overlays[i].classList.add('hidden');
   if (id) $(id).classList.remove('hidden');
-  $('touch').classList.toggle('hidden', id !== null);   // botões de toque só durante a jogada
+  $('touch').style.display = id ? 'none' : '';
 }
 
 function loadLevel(i){
@@ -365,20 +345,22 @@ function loadLevel(i){
   level = buildLevel(i);
   p = makePlayer(60, GROUND_Y - PH);
   cam = 0;
-  particles.length = 0;
-  bannerText = `Fase ${i + 1}: ${LEVELS[i].name}`;
+  particles = [];
+  bannerText = 'Fase ' + (i + 1) + ': ' + LEVELS[i];
   banner = 170;
 }
 
 function tryFullscreen(){
-  const el = document.documentElement;
-  if (!document.fullscreenElement && el.requestFullscreen){
-    el.requestFullscreen().catch(() => {});
-  }
+  var el = document.documentElement;
+  try {
+    if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen();
+  } catch (err) {}
 }
 function toggleFullscreen(){
-  if (!document.fullscreenElement){ tryFullscreen(); }
-  else if (document.exitFullscreen){ document.exitFullscreen().catch(() => {}); }
+  try {
+    if (!document.fullscreenElement){ tryFullscreen(); }
+    else if (document.exitFullscreen){ document.exitFullscreen(); }
+  } catch (err) {}
 }
 
 function startGame(){
@@ -387,7 +369,6 @@ function startGame(){
   state = 'playing';
   resetInputs();
   showOnly(null);
-  if (isTouch) tryFullscreen();
 }
 
 function gameOver(){
@@ -400,16 +381,16 @@ function gameOver(){
 function showWin(){
   state = 'win';
   resetInputs();
-  const perfect = correctCount === QUIZ.length;   // doce só se acertou todas
+  var perfect = correctCount === QUIZ.length;
   $('winScore').textContent = score;
   $('winCorrect').textContent = correctCount;
   $('winDoce').textContent = perfect
-    ? '🍬 Você acertou tudo e ganhou 1 doce de verdade!'
+    ? 'Você acertou tudo e ganhou 1 doce de verdade!'
     : 'Não foi dessa vez. Para ganhar o doce, acerte todas as 10 perguntas.';
   showOnly('win');
 }
 
-/* Atalho secreto: zera o jogo com todas as respostas certas */
+/* Código secreto: zera o jogo com todas as respostas certas */
 function cheatWin(){
   if (state === 'win') return;
   correctCount = QUIZ.length;
@@ -431,7 +412,6 @@ function resumeGame(){
   showOnly(null);
 }
 
-/* Perde uma vida: renasce no checkpoint ou termina o jogo */
 function hurt(){
   lives--;
   flash = 22;
@@ -439,10 +419,9 @@ function hurt(){
   if (lives <= 0){ gameOver(); return; }
   p.x = p.cp.x; p.y = p.cp.y;
   p.vx = 0; p.vy = 0; p.invuln = 120; p.dashT = 0;
-  toast(`Você perdeu uma vida · restam ${lives}`);
+  toast('Você perdeu uma vida · restam ' + lives);
 }
 
-/* Dash: ação instantânea, respeita a recarga */
 function startDash(){
   if (!p || p.dashCd > 0 || p.dashT > 0) return;
   p.dashT = DASH_FRAMES;
@@ -456,20 +435,22 @@ function startDash(){
 function finishLevel(){
   state = 'quiz';
   answered = false;
-  quizReadyAt = performance.now() + QUIZ_DELAY;
+  quizReadyAt = Date.now() + QUIZ_DELAY;
   resetInputs();
-  const q = QUIZ[levelIdx];
-  $('qTitle').textContent = `Fim da fase ${levelIdx + 1}: ${LEVELS[levelIdx].name}`;
+  var q = QUIZ[levelIdx];
+  $('qTitle').textContent = 'Fim da fase ' + (levelIdx + 1) + ': ' + LEVELS[levelIdx];
   $('qText').textContent = q.q;
-  const box = $('qOpts');
+  var box = $('qOpts');
   box.innerHTML = '';
-  q.o.forEach((txt, i) => {
-    const b = document.createElement('button');
-    b.className = 'opt';
-    b.textContent = `${'ABCD'[i]}) ${txt}`;
-    b.onclick = () => { b.blur(); answer(i); };
-    box.appendChild(b);
-  });
+  for (var i = 0; i < q.o.length; i++){
+    (function (idx){
+      var b = document.createElement('button');
+      b.className = 'opt';
+      b.textContent = 'ABCD'.charAt(idx) + ') ' + q.o[idx];
+      b.onclick = function (){ answer(idx); };
+      box.appendChild(b);
+    })(i);
+  }
   $('qFeedback').classList.add('hidden');
   $('qFeedback').innerHTML = '';
   $('qNext').classList.add('hidden');
@@ -478,31 +459,31 @@ function finishLevel(){
 
 function answer(i){
   if (state !== 'quiz' || answered) return;
-  if (performance.now() < quizReadyAt) return;   // ignora toques/teclas logo ao abrir
+  if (Date.now() < quizReadyAt) return;
   answered = true;
-  const q = QUIZ[levelIdx];
-  const btns = [...$('qOpts').children];
-  btns.forEach(b => b.disabled = true);
+  var q = QUIZ[levelIdx];
+  var btns = $('qOpts').getElementsByTagName('button');
+  for (var k = 0; k < btns.length; k++) btns[k].disabled = true;
   btns[q.a].classList.add('correct');
 
-  let msg;
+  var msg;
   if (i === q.a){
     correctCount++;
     score += 500;
-    msg = `✔ Correto! Você já acertou ${correctCount} de ${levelIdx + 1} perguntas.`;
+    msg = 'Correto! Você já acertou ' + correctCount + ' de ' + (levelIdx + 1) + ' perguntas.';
   } else {
     btns[i].classList.add('wrong');
-    msg = `✘ Resposta incorreta. A certa era a alternativa ${'ABCD'[q.a]}. Para ganhar o doce, precisa acertar todas.`;
+    msg = 'Resposta incorreta. A certa era a alternativa ' + 'ABCD'.charAt(q.a) + '. Para ganhar o doce, precisa acertar todas.';
   }
-  $('qFeedback').innerHTML = `<strong>${msg}</strong><br>${q.e}`;
+  $('qFeedback').innerHTML = '<strong>' + msg + '</strong><br>' + q.e;
   $('qFeedback').classList.remove('hidden');
-  $('qNext').textContent = levelIdx === LEVELS.length - 1 ? 'Ver resultado final ➜' : 'Próximo nível ➜';
+  $('qNext').textContent = levelIdx === LEVELS.length - 1 ? 'Ver resultado final' : 'Próximo nível';
   $('qNext').classList.remove('hidden');
 }
 
 function nextLevel(){
   if (state !== 'quiz' || !answered) return;
-  const next = levelIdx + 1;
+  var next = levelIdx + 1;
   if (next >= LEVELS.length){ showWin(); return; }
   loadLevel(next);
   state = 'playing';
@@ -511,13 +492,12 @@ function nextLevel(){
 }
 
 /* =========================================================
-   ATUALIZAÇÃO (física, colisões e regras) — passo fixo
+   ATUALIZAÇÃO (física e regras, passo fixo)
    ========================================================= */
 function update(){
   if (p.invuln > 0) p.invuln--;
   if (p.dashCd > 0) p.dashCd--;
 
-  // 1) Movimento horizontal (o dash sobrescreve a velocidade por alguns frames)
   if (p.dashT === 0){
     if (inp.right) p.facing = 1;
     else if (inp.left) p.facing = -1;
@@ -527,7 +507,6 @@ function update(){
     p.vx = p.facing * DASH_V;
   }
 
-  // 2) Pulo: coyote time, buffer e pulo duplo no ar
   if (p.onGround) p.airJumps = 1;
   p.coyote = p.onGround ? 6 : Math.max(0, p.coyote - 1);
   if (p.jumpBuf > 0){
@@ -540,39 +519,39 @@ function update(){
       p.jumpBuf--;
     }
   }
-  if (!inp.jump && p.vy < JUMP_CUT) p.vy = JUMP_CUT;   // pulo de altura variável
+  if (!inp.jump && p.vy < JUMP_CUT) p.vy = JUMP_CUT;
   p.vy = Math.min(p.vy + G, MAX_FALL);
 
-  // 3) Colisão no eixo X
   p.x += p.vx;
   if (p.x < 0) p.x = 0;
-  for (const pl of level.plats){
+  for (var i = 0; i < level.plats.length; i++){
+    var pl = level.plats[i];
     if (overlap(p.x, p.y, PW, PH, pl.x, pl.y, pl.w, pl.h)){
       if (p.vx > 0) p.x = pl.x - PW;
       else if (p.vx < 0) p.x = pl.x + pl.w;
     }
   }
 
-  // 4) Colisão no eixo Y
   p.y += p.vy;
   p.onGround = false;
-  for (const pl of level.plats){
-    if (!overlap(p.x, p.y, PW, PH, pl.x, pl.y, pl.w, pl.h)) continue;
-    if (p.vy >= 0){ p.y = pl.y - PH; p.onGround = true; }
-    else { p.y = pl.y + pl.h; }
+  for (i = 0; i < level.plats.length; i++){
+    var pf = level.plats[i];
+    if (!overlap(p.x, p.y, PW, PH, pf.x, pf.y, pf.w, pf.h)) continue;
+    if (p.vy >= 0){ p.y = pf.y - PH; p.onGround = true; }
+    else { p.y = pf.y + pf.h; }
     p.vy = 0;
   }
 
-  // 5) Espinhos (caixa de colisão reduzida para ser justo)
-  const pr = { x:p.x + 5, y:p.y + 6, w:PW - 10, h:PH - 6 };
   if (p.invuln === 0){
-    for (const hz of level.hazards){
-      if (hit(pr, hz)){ hurt(); return; }
+    var pr = { x:p.x + 5, y:p.y + 6, w:PW - 10, h:PH - 6 };
+    for (i = 0; i < level.hazards.length; i++){
+      var hz = level.hazards[i];
+      if (overlap(pr.x, pr.y, pr.w, pr.h, hz.x, hz.y, hz.w, hz.h)){ hurt(); return; }
     }
   }
 
-  // 6) Moedas
-  for (const c of level.coins){
+  for (i = 0; i < level.coins.length; i++){
+    var c = level.coins[i];
     if (!c.taken && Math.abs(c.x - (p.x + PW / 2)) < 20 && Math.abs(c.y - (p.y + PH / 2)) < 24){
       c.taken = true;
       score += 10;
@@ -580,8 +559,8 @@ function update(){
     }
   }
 
-  // 7) Checkpoints (ativam quando o jogador está de pé)
-  for (const cp of level.cps){
+  for (i = 0; i < level.cps.length; i++){
+    var cp = level.cps[i];
     if (!cp.reached && p.onGround && p.x >= cp.at){
       cp.reached = true;
       p.cp = { x:cp.sx, y:cp.sy };
@@ -590,30 +569,25 @@ function update(){
     }
   }
 
-  // 8) Queda em abismo
   if (p.y > H + 60){ hurt(); return; }
-
-  // 9) Chegada à bandeira -> quiz
   if (p.x + PW >= level.goalX){ finishLevel(); return; }
 
-  // 10) Câmera
   cam = Math.max(0, Math.min(level.len - VW, p.x - VW * 0.4));
 }
 
 /* =========================================================
-   DESENHO — cenário com camadas de parallax (ajustado pela qualidade)
+   DESENHO
    ========================================================= */
-const CLOUDS = Array.from({ length:9 }, (_, i) => ({
-  x: i * 160 + (i % 2) * 30, y: 60 + (i * 37) % 90, s: 0.9 + (i % 3) * 0.2
-}));
-
-const STARS = Array.from({ length:70 }, (_, i) => ({
-  x: hash(i * 3.1) * 1600, y: hash(i * 7.7) * 170, r: 0.5 + hash(i * 1.9) * 1.2,
-  ph: hash(i * 5.3) * Math.PI * 2
-}));
-
-for (let i = 0; i < 40; i++){
-  dust.push({ x: hash(i * 2.3) * 1200, y: 150 + hash(i * 4.1) * 280, s: 0.4 + hash(i) * 1.2 });
+var CLOUDS = [];
+for (var ci = 0; ci < 9; ci++){
+  CLOUDS.push({ x: ci * 160 + (ci % 2) * 30, y: 60 + (ci * 37) % 90, s: 0.9 + (ci % 3) * 0.2 });
+}
+var STARS = [];
+for (var si = 0; si < 70; si++){
+  STARS.push({ x: hash(si * 3.1) * 1600, y: hash(si * 7.7) * 170, r: 0.5 + hash(si * 1.9) * 1.2, ph: hash(si * 5.3) * Math.PI * 2 });
+}
+for (var di = 0; di < 40; di++){
+  dust.push({ x: hash(di * 2.3) * 1200, y: 150 + hash(di * 4.1) * 280, s: 0.4 + hash(di) * 1.2 });
 }
 
 function drawCloud(x, y, s){
@@ -623,25 +597,18 @@ function drawCloud(x, y, s){
   ctx.arc(x + 22 * s, y - 8 * s, 22 * s, 0, Math.PI * 2);
   ctx.arc(x + 46 * s, y, 16 * s, 0, Math.PI * 2);
   ctx.fill();
-  if (quality !== 'low'){
-    // sombra inferior da nuvem
-    ctx.fillStyle = 'rgba(180,120,90,.18)';
-    ctx.beginPath();
-    ctx.ellipse(x + 22 * s, y + 10 * s, 36 * s, 6 * s, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
 }
 
 function hillLayer(par, colorTop, colorBot, base, amp, seed){
-  const g = ctx.createLinearGradient(0, base - amp, 0, H + 60);
+  var g = ctx.createLinearGradient(0, base - amp, 0, H + 60);
   g.addColorStop(0, colorTop);
   g.addColorStop(1, colorBot);
   ctx.fillStyle = g;
   ctx.beginPath();
   ctx.moveTo(-20, H + 60);
-  for (let x = -20; x <= VW + 20; x += 12){
-    const wx = x + cam * par;
-    const y = base + Math.sin(wx * 0.008 + seed) * amp + Math.sin(wx * 0.021 + seed * 1.7) * amp * 0.4;
+  for (var x = -20; x <= VW + 20; x += 12){
+    var wx = x + cam * par;
+    var y = base + Math.sin(wx * 0.008 + seed) * amp + Math.sin(wx * 0.021 + seed * 1.7) * amp * 0.4;
     ctx.lineTo(x, y);
   }
   ctx.lineTo(VW + 20, H + 60);
@@ -649,51 +616,41 @@ function hillLayer(par, colorTop, colorBot, base, amp, seed){
   ctx.fill();
 }
 
-/* Árvores (umbuzeiros estilizados) com copa em duas tonalidades */
 function trees(par, by, scale, dark){
-  const step = 170;
-  const first = Math.floor((cam * par) / step) - 1;
-  const n = Math.ceil(VW / step) + 3;
-  for (let k = first; k < first + n; k++){
-    const h = (0.6 + hash(k) * 0.5) * scale;
-    const sx = k * step - cam * par + hash(k + 9) * 30;
+  var step = 170;
+  var first = Math.floor((cam * par) / step) - 1;
+  var n = Math.ceil(VW / step) + 3;
+  for (var k = first; k < first + n; k++){
+    var h = (0.6 + hash(k) * 0.5) * scale;
+    var sx = k * step - cam * par + hash(k + 9) * 30;
     ctx.fillStyle = dark ? '#2a2a1e' : '#3d4f2e';
     ctx.fillRect(sx - 3, by - 30 * h, 6, 30 * h);
     ctx.fillStyle = dark ? '#1f2a1a' : '#2f4a2a';
     ctx.beginPath();
     ctx.ellipse(sx, by - 38 * h, 18 * h, 20 * h, 0, 0, Math.PI * 2);
     ctx.fill();
-    if (!dark && quality !== 'low'){
-      ctx.fillStyle = 'rgba(160,200,110,.25)';
-      ctx.beginPath();
-      ctx.ellipse(sx - 5 * h, by - 44 * h, 8 * h, 9 * h, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
   }
 }
 
-/* Casinha de estância ao longe, repetida com parallax */
 function ranch(par, by){
-  const step = 620;
-  const first = Math.floor((cam * par) / step) - 1;
-  for (let k = first; k < first + Math.ceil(VW / step) + 3; k++){
-    const sx = k * step + 180 - cam * par;
+  var step = 620;
+  var first = Math.floor((cam * par) / step) - 1;
+  for (var k = first; k < first + Math.ceil(VW / step) + 3; k++){
+    var sx = k * step + 180 - cam * par;
     ctx.fillStyle = '#2d2016';
     ctx.fillRect(sx, by - 26, 46, 26);
     ctx.beginPath();
     ctx.moveTo(sx - 4, by - 26); ctx.lineTo(sx + 23, by - 42); ctx.lineTo(sx + 50, by - 26);
     ctx.closePath(); ctx.fill();
-    ctx.fillStyle = 'rgba(255,200,110,.7)';            // janela acesa
+    ctx.fillStyle = 'rgba(255,200,110,.7)';
     ctx.fillRect(sx + 8, by - 18, 8, 8);
     ctx.fillRect(sx + 30, by - 18, 8, 8);
-    ctx.fillStyle = '#2d2016';
-    ctx.fillRect(sx + 36, by - 58, 4, 16);             // chaminé
+    ctx.fillRect(sx + 36, by - 58, 4, 16);
   }
 }
 
 function drawSky(){
-  // Céu: do azul profundo ao laranja do entardecer
-  const g = ctx.createLinearGradient(0, 0, 0, H);
+  var g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#152a47');
   g.addColorStop(0.3, '#2f5778');
   g.addColorStop(0.58, '#d9785a');
@@ -702,19 +659,17 @@ function drawSky(){
   ctx.fillStyle = g;
   ctx.fillRect(-100, -400, VW + 200, H + 800);
 
-  // Estrelas piscando na parte alta do céu
-  const nStars = Q().stars;
-  for (let i = 0; i < nStars; i++){
-    const s = STARS[i];
-    const tw = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 0.05 + s.ph));
-    const x = ((s.x - cam * 0.02) % 1600 + 1600) % 1600 - 100;
-    ctx.fillStyle = `rgba(255,250,235,${0.8 * tw})`;
+  var nStars = Q().stars;
+  for (var i = 0; i < nStars; i++){
+    var s = STARS[i];
+    var tw = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 0.05 + s.ph));
+    var x = ((s.x - cam * 0.02) % 1600 + 1600) % 1600 - 100;
+    ctx.fillStyle = 'rgba(255,250,235,' + (0.8 * tw) + ')';
     ctx.beginPath(); ctx.arc(x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
   }
 
-  // Sol com halo
-  const sx = VW * 0.72 - cam * 0.02, sy = 120;
-  const sg = ctx.createRadialGradient(sx, sy, 10, sx, sy, 190);
+  var sx = VW * 0.72 - cam * 0.02, sy = 120;
+  var sg = ctx.createRadialGradient(sx, sy, 10, sx, sy, 190);
   sg.addColorStop(0, 'rgba(255,245,210,1)');
   sg.addColorStop(0.22, 'rgba(255,220,150,.5)');
   sg.addColorStop(1, 'rgba(255,200,120,0)');
@@ -723,19 +678,15 @@ function drawSky(){
   ctx.fillStyle = '#fff6dc';
   ctx.beginPath(); ctx.arc(sx, sy, 36, 0, Math.PI * 2); ctx.fill();
 
-  // Nuvens (parallax lento e repetição)
-  const span = 1440;
-  const nClouds = Q().clouds;
-  for (let i = 0; i < nClouds; i++){
-    const c = CLOUDS[i];
-    const x = ((c.x - cam * 0.08) % span + span) % span - 150;
-    drawCloud(x, c.y, c.s);
+  var span = 1440;
+  var nClouds = Q().clouds;
+  for (var ci2 = 0; ci2 < nClouds; ci2++){
+    var c = CLOUDS[ci2];
+    var cx = ((c.x - cam * 0.08) % span + span) % span - 150;
+    drawCloud(cx, c.y, c.s);
   }
 
-  // Serra distante em tom azulado
   hillLayer(0.08, '#6b6f94', '#4a5070', 265, 22, 1.3);
-
-  // Coxilhas em camadas, cada uma mais escura e mais perto
   hillLayer(0.15, '#8c6a8f', '#5e4a6b', 300, 36, 0.5);
   ranch(0.2, 330);
   hillLayer(0.3, '#6f8a52', '#4d6a3a', 340, 28, 2.1);
@@ -744,29 +695,20 @@ function drawSky(){
   trees(0.55, 392, 0.8, false);
 }
 
-/* Chão com grama que balança, terra e pedrinhas */
 function drawGround(pl){
-  const g = ctx.createLinearGradient(0, pl.y, 0, pl.y + pl.h);
+  var g = ctx.createLinearGradient(0, pl.y, 0, pl.y + pl.h);
   g.addColorStop(0, '#7a5232');
   g.addColorStop(1, '#3f2615');
   ctx.fillStyle = g;
   ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
 
-  // Camada de terra mais clara logo abaixo da grama
-  ctx.fillStyle = 'rgba(180,130,80,.25)';
-  ctx.fillRect(pl.x, pl.y + 10, pl.w, 3);
-
-  // Topo de grama
   ctx.fillStyle = '#5c9a3a';
   ctx.fillRect(pl.x, pl.y, pl.w, 8);
-  ctx.fillStyle = '#7bb74e';
-  ctx.fillRect(pl.x, pl.y, pl.w, 3);
 
-  // Lâminas de grama balançando com o vento (menos lâminas nos gráficos baixos)
-  const gStep = Q().grass;
-  for (let gx = pl.x + 4; gx < pl.x + pl.w; gx += gStep){
-    const h = 3 + hash(gx) * 6;
-    const sway = Math.sin(t * 0.06 + gx * 0.2) * 1.6;
+  var gStep = Q().grass;
+  for (var gx = pl.x + 4; gx < pl.x + pl.w; gx += gStep){
+    var h = 3 + hash(gx) * 6;
+    var sway = Math.sin(t * 0.06 + gx * 0.2) * 1.6;
     ctx.fillStyle = hash(gx + 3) > 0.5 ? '#4a8230' : '#5f9a3c';
     ctx.beginPath();
     ctx.moveTo(gx, pl.y + 1);
@@ -775,86 +717,63 @@ function drawGround(pl){
     ctx.fill();
   }
 
-  // Pedrinhas e terra escura
   ctx.fillStyle = 'rgba(0,0,0,.25)';
-  for (let gx = pl.x + 10; gx < pl.x + pl.w; gx += 23){
+  for (var px = pl.x + 10; px < pl.x + pl.w; px += 23){
     ctx.beginPath();
-    ctx.arc(gx + hash(gx) * 8, pl.y + 30 + hash(gx + 1) * 40, 2 + hash(gx + 2) * 2, 0, Math.PI * 2);
+    ctx.arc(px + hash(px) * 8, pl.y + 30 + hash(px + 1) * 40, 2 + hash(px + 2) * 2, 0, Math.PI * 2);
     ctx.fill();
-  }
-  if (quality !== 'low'){
-    ctx.fillStyle = 'rgba(200,180,150,.18)';
-    for (let gx = pl.x + 30; gx < pl.x + pl.w; gx += 47){
-      ctx.beginPath();
-      ctx.arc(gx + hash(gx + 5) * 10, pl.y + 20 + hash(gx + 6) * 30, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
   }
 }
 
-/* Tábua de madeira suspensa, com pilares, veios e pregos */
 function drawPlank(pl){
   ctx.fillStyle = '#3a2615';
   ctx.fillRect(pl.x + 6, pl.y + pl.h, 6, 14);
   ctx.fillRect(pl.x + pl.w - 12, pl.y + pl.h, 6, 14);
 
-  const g = ctx.createLinearGradient(0, pl.y, 0, pl.y + pl.h);
+  var g = ctx.createLinearGradient(0, pl.y, 0, pl.y + pl.h);
   g.addColorStop(0, '#b68652');
   g.addColorStop(1, '#6b4527');
   ctx.fillStyle = g;
   ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
 
-  // Veios da madeira
   ctx.fillStyle = 'rgba(60,35,15,.3)';
-  for (let gx = pl.x + 18; gx < pl.x + pl.w; gx += 34){
+  for (var gx = pl.x + 18; gx < pl.x + pl.w; gx += 34){
     ctx.fillRect(gx, pl.y + 4, 2, pl.h - 8);
   }
-  // Brilho no topo e grama musgosa
-  ctx.fillStyle = 'rgba(255,230,180,.22)';
-  ctx.fillRect(pl.x, pl.y + 2, pl.w, 2);
   ctx.fillStyle = '#5b8f3a';
   ctx.fillRect(pl.x, pl.y, pl.w, 4);
-  ctx.fillStyle = '#2e1d10';
-  ctx.beginPath(); ctx.arc(pl.x + 6, pl.y + pl.h / 2, 1.6, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(pl.x + pl.w - 6, pl.y + pl.h / 2, 1.6, 0, Math.PI * 2); ctx.fill();
 }
 
 function drawPlatforms(){
-  for (const pl of level.plats){
-    if (pl.x + pl.w < cam - 40 || pl.x > cam + VW + 40) continue;   // culling
-    if (pl.y >= GROUND_Y) drawGround(pl);
-    else drawPlank(pl);
+  for (var i = 0; i < level.plats.length; i++){
+    var pl = level.plats[i];
+    if (pl.x + pl.w < cam - 40 || pl.x > cam + VW + 40) continue;
+    if (pl.y >= GROUND_Y) drawGround(pl); else drawPlank(pl);
   }
 }
 
-/* Espinhos metálicos com brilho */
 function drawHazards(){
-  for (const hz of level.hazards){
+  ctx.fillStyle = '#d9dee4';
+  for (var i = 0; i < level.hazards.length; i++){
+    var hz = level.hazards[i];
     if (hz.x < cam - 40 || hz.x > cam + VW + 40) continue;
-    const n = Math.max(2, Math.round(hz.w / 9));
-    for (let i = 0; i < n; i++){
-      const x0 = hz.x + i * (hz.w / n), w = hz.w / n;
-      ctx.fillStyle = '#d9dee4';
+    var n = Math.max(2, Math.round(hz.w / 9));
+    for (var k = 0; k < n; k++){
+      var x0 = hz.x + k * (hz.w / n), w = hz.w / n;
       ctx.beginPath();
       ctx.moveTo(x0, hz.y + hz.h);
       ctx.lineTo(x0 + w / 2, hz.y);
       ctx.lineTo(x0 + w, hz.y + hz.h);
       ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#8c949c';
-      ctx.beginPath();
-      ctx.moveTo(x0 + w / 2, hz.y);
-      ctx.lineTo(x0 + w, hz.y + hz.h);
-      ctx.lineTo(x0 + w * 0.6, hz.y + hz.h);
-      ctx.closePath(); ctx.fill();
     }
   }
 }
 
-/* Bandeira de checkpoint */
 function drawCheckpoints(){
-  for (const cp of level.cps){
+  for (var i = 0; i < level.cps.length; i++){
+    var cp = level.cps[i];
     if (cp.sx < cam - 60 || cp.sx > cam + VW + 60) continue;
-    const x = cp.sx + PW + 8, base = cp.sy + PH;
+    var x = cp.sx + PW + 8, base = cp.sy + PH;
     ctx.fillStyle = '#e4e4e4';
     ctx.fillRect(x, base - 40, 3, 40);
     ctx.fillStyle = cp.reached ? '#3f7d3a' : '#9a8a70';
@@ -866,35 +785,23 @@ function drawCheckpoints(){
   }
 }
 
-/* Moedas com brilho que pulsa */
 function drawCoins(){
-  for (const c of level.coins){
+  for (var i = 0; i < level.coins.length; i++){
+    var c = level.coins[i];
     if (c.taken) continue;
-    const y = c.y + Math.sin(t * 0.1 + c.x) * 2.5;
-    if (quality === 'low'){
-      ctx.fillStyle = '#ffd54a';
-      ctx.beginPath(); ctx.arc(c.x, y, 7, 0, Math.PI * 2); ctx.fill();
-      continue;
-    }
-    const g = ctx.createRadialGradient(c.x - 2, y - 2, 1, c.x, y, 8);
-    g.addColorStop(0, '#fff6b0');
-    g.addColorStop(0.5, '#ffd54a');
-    g.addColorStop(1, '#b8862b');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(c.x, y, 7.5, 0, Math.PI * 2); ctx.fill();
+    var y = c.y + Math.sin(t * 0.1 + c.x) * 2.5;
+    ctx.fillStyle = '#ffd54a';
+    ctx.beginPath(); ctx.arc(c.x, y, 7, 0, Math.PI * 2); ctx.fill();
   }
 }
 
-/* Chegada: mastro com bandeira tremulando */
 function drawGoal(){
-  const gx = level.goalX;
+  var gx = level.goalX;
   ctx.fillStyle = '#e8e8e8';
   ctx.fillRect(gx, 240, 5, 160);
-  ctx.fillStyle = '#b8862b';
-  ctx.beginPath(); ctx.arc(gx + 2.5, 238, 4, 0, Math.PI * 2); ctx.fill();
-  for (let i = 0; i < 6; i++){
-    const x0 = gx + 5 + i * 8;
-    const y0 = 246 + Math.sin(t * 0.12 + i * 0.7) * 3 * (0.3 + i / 6);
+  for (var i = 0; i < 6; i++){
+    var x0 = gx + 5 + i * 8;
+    var y0 = 246 + Math.sin(t * 0.12 + i * 0.7) * 3 * (0.3 + i / 6);
     ctx.fillStyle = '#b8432f';
     ctx.fillRect(x0, y0, 8, 13);
     ctx.fillStyle = '#3f7d3a';
@@ -906,7 +813,6 @@ function drawGoal(){
   ctx.fillText('CHEGADA', gx - 6, 230);
 }
 
-/* Sombra do jogador no chão */
 function drawShadow(){
   if (!p.onGround || !Q().shadow) return;
   ctx.fillStyle = 'rgba(0,0,0,.25)';
@@ -915,14 +821,15 @@ function drawShadow(){
   ctx.fill();
 }
 
-/* Desenha o gaúcho com origem no topo da cabeça (cx = x do mundo) */
+/* Desenha o personagem escolhido (origem no topo da cabeça) */
 function drawBody(cx, top, k, air){
+  var c = CH();
   ctx.save();
   ctx.translate(cx + PW / 2, top);
   ctx.scale(p.facing, 1);
 
   // Pernas e botas
-  const l1 = air ? -6 : k * 6, l2 = air ? 6 : -k * 6;
+  var l1 = air ? -6 : k * 6, l2 = air ? 6 : -k * 6;
   ctx.strokeStyle = '#5a3d22';
   ctx.lineWidth = 5;
   ctx.lineCap = 'round';
@@ -934,50 +841,69 @@ function drawBody(cx, top, k, air){
   ctx.fillRect(-5 + l1, 35, 8, 5);
   ctx.fillRect(-1 + l2, 35, 8, 5);
 
-  // Poncho com gradiente, franja e listra dourada
-  const pg = ctx.createLinearGradient(0, 12, 0, 30);
-  pg.addColorStop(0, '#c4482f');
-  pg.addColorStop(1, '#7e2618');
-  ctx.fillStyle = pg;
-  ctx.beginPath();
-  ctx.moveTo(-8, 12); ctx.lineTo(8, 12); ctx.lineTo(13, 30); ctx.lineTo(-13, 30);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#e8b44a';
-  ctx.fillRect(-9, 22, 18, 2);
-  ctx.fillStyle = 'rgba(255,220,180,.25)';
-  ctx.fillRect(-6, 13, 4, 6);
+  // Corpo: poncho ou saia (prenda)
+  if (c.dress){
+    ctx.fillStyle = c.poncho[0];
+    ctx.beginPath();
+    ctx.moveTo(-5, 12); ctx.lineTo(5, 12); ctx.lineTo(12, 34); ctx.lineTo(-12, 34);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = c.band;
+    ctx.fillRect(-11, 28, 22, 2);
+  } else {
+    var pg = ctx.createLinearGradient(0, 12, 0, 30);
+    pg.addColorStop(0, c.poncho[0]);
+    pg.addColorStop(1, c.poncho[1]);
+    ctx.fillStyle = pg;
+    ctx.beginPath();
+    ctx.moveTo(-8, 12); ctx.lineTo(8, 12); ctx.lineTo(13, 30); ctx.lineTo(-13, 30);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = c.band;
+    ctx.fillRect(-9, 22, 18, 2);
+  }
 
   // Lenço no pescoço
-  ctx.fillStyle = '#e0572f';
+  ctx.fillStyle = c.lenco;
   ctx.beginPath();
   ctx.moveTo(-5, 10); ctx.lineTo(5, 10); ctx.lineTo(0, 15);
   ctx.closePath(); ctx.fill();
 
-  // Cabeça, olho e bigode
+  // Cabeça e olho
   ctx.fillStyle = '#d9a77a';
   ctx.beginPath(); ctx.arc(0, 8, 5.5, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#1d1208';
   ctx.fillRect(1.5, 6.5, 1.8, 1.8);
-  ctx.strokeStyle = '#2b1d12';
-  ctx.lineWidth = 1.4;
-  ctx.beginPath(); ctx.moveTo(1, 10.5); ctx.quadraticCurveTo(3.5, 12, 5.5, 10); ctx.stroke();
 
-  // Chapéu com fita
-  ctx.fillStyle = '#2b1d12';
-  ctx.beginPath(); ctx.ellipse(0, 3, 11, 3, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillRect(-5, -5, 10, 8);
-  ctx.fillStyle = '#b8432f';
-  ctx.fillRect(-5, 0, 10, 2);
+  // Cabelo / chapéu conforme o personagem
+  if (c.dress){
+    ctx.fillStyle = c.hat;
+    ctx.beginPath(); ctx.arc(0, 6, 6.5, Math.PI, 0); ctx.fill();
+    ctx.beginPath(); ctx.arc(-4, 6, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-6, -1, 3.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = c.band;
+    ctx.beginPath(); ctx.arc(-2, 1, 1.6, 0, Math.PI * 2); ctx.fill();
+  } else if (c.hatType === 'cap'){
+    ctx.fillStyle = c.hat;
+    ctx.fillRect(-5, -5, 10, 7);
+    ctx.beginPath(); ctx.ellipse(3, 2, 7, 1.8, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = c.band;
+    ctx.fillRect(-5, 0, 10, 1.5);
+  } else {
+    ctx.fillStyle = c.hat;
+    ctx.beginPath(); ctx.ellipse(0, 3, 11, 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(-5, -5, 10, 8);
+    ctx.fillStyle = c.band;
+    ctx.fillRect(-5, 0, 10, 2);
+  }
 
   ctx.restore();
 }
 
 function drawPlayer(){
-  if (p.invuln > 0 && Math.floor(t / 4) % 2 === 0) return;   // piscar após dano
-  const k = p.onGround && p.vx !== 0 && p.dashT === 0 ? Math.sin(t * 0.45) : 0;
-  const air = !p.onGround;
+  if (p.invuln > 0 && Math.floor(t / 4) % 2 === 0) return;
+  var k = p.onGround && p.vx !== 0 && p.dashT === 0 ? Math.sin(t * 0.45) : 0;
+  var air = !p.onGround;
   if (p.dashT > 0){
-    ctx.globalAlpha = 0.22;                                  // rastro do dash
+    ctx.globalAlpha = 0.22;
     drawBody(p.x - p.facing * 10, p.y, k, air);
     drawBody(p.x - p.facing * 20, p.y, k, air);
     ctx.globalAlpha = 1;
@@ -985,21 +911,21 @@ function drawPlayer(){
   drawBody(p.x, p.y, k, air);
 }
 
-/* Poeira flutuando, com parallax leve */
 function drawDust(){
-  const n = Q().dust;
+  var n = Q().dust;
   if (!n) return;
   ctx.fillStyle = 'rgba(255,230,190,.35)';
-  for (let i = 0; i < n; i++){
-    const d = dust[i];
-    const x = ((d.x - cam * 0.5 + t * 0.2 * d.s) % 1200 + 1200) % 1200 - 100;
-    const y = d.y + Math.sin(t * 0.02 + d.x) * 6;
+  for (var i = 0; i < n; i++){
+    var d = dust[i];
+    var x = ((d.x - cam * 0.5 + t * 0.2 * d.s) % 1200 + 1200) % 1200 - 100;
+    var y = d.y + Math.sin(t * 0.02 + d.x) * 6;
     ctx.beginPath(); ctx.arc(x, y, d.s, 0, Math.PI * 2); ctx.fill();
   }
 }
 
 function drawParticles(){
-  for (const q of particles){
+  for (var i = 0; i < particles.length; i++){
+    var q = particles[i];
     ctx.globalAlpha = Math.max(0, q.life / 40);
     ctx.fillStyle = q.color;
     ctx.fillRect(q.x, q.y, 4, 4);
@@ -1007,7 +933,6 @@ function drawParticles(){
   ctx.globalAlpha = 1;
 }
 
-/* Coração (vida) */
 function heart(x, y, s){
   ctx.beginPath();
   ctx.moveTo(x, y + s * 0.3);
@@ -1020,54 +945,42 @@ function heart(x, y, s){
 
 function drawHUD(){
   if (!level) return;
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,.7)';
-  ctx.shadowBlur = quality === 'low' ? 0 : 4;
-
   ctx.font = 'bold 15px Georgia, serif';
   ctx.fillStyle = '#fff3d6';
   ctx.textAlign = 'left';
-  ctx.fillText(`Fase ${levelIdx + 1}/10 · ${LEVELS[levelIdx].name}`, 14, 24);
+  ctx.fillText('Fase ' + (levelIdx + 1) + '/10 · ' + LEVELS[levelIdx], 14, 24);
   ctx.textAlign = 'center';
-  ctx.fillText(`Pontos: ${score}`, VW / 2, 24);
+  ctx.fillText('Pontos: ' + score, VW / 2, 24);
 
-  // Vidas (corações)
-  for (let i = 0; i < LIVES_MAX; i++){
+  for (var i = 0; i < LIVES_MAX; i++){
     ctx.fillStyle = i < lives ? '#ff5b4b' : 'rgba(255,255,255,.25)';
     heart(26 + i * 24, 34, 16);
     ctx.fill();
   }
 
-  // Progresso de acertos do quiz
   ctx.textAlign = 'left';
   ctx.fillStyle = '#fff3d6';
-  ctx.fillText(`Acertos: ${correctCount}/${QUIZ.length}`, 26 + LIVES_MAX * 24 + 14, 48);
+  ctx.fillText('Acertos: ' + correctCount + '/' + QUIZ.length, 26 + LIVES_MAX * 24 + 14, 48);
 
-  // Barra de progresso
-  ctx.shadowBlur = 0;
-  const prog = level ? Math.min(1, p.x / level.goalX) : 0;
+  var prog = level ? Math.min(1, p.x / level.goalX) : 0;
   ctx.fillStyle = 'rgba(0,0,0,.4)';
   ctx.fillRect(14, H - 14, VW - 28, 6);
   ctx.fillStyle = '#e8b44a';
   ctx.fillRect(14, H - 14, (VW - 28) * prog, 6);
 
-  // Banner (nome da fase, checkpoint, avisos)
   if (banner > 0 && bannerText){
     ctx.globalAlpha = Math.min(1, banner / 30);
     ctx.textAlign = 'center';
     ctx.font = 'bold 26px Georgia, serif';
-    ctx.shadowBlur = quality === 'low' ? 0 : 6;
     ctx.fillStyle = '#e8b44a';
     ctx.fillText(bannerText, VW / 2, H * 0.35);
     ctx.globalAlpha = 1;
   }
-  ctx.restore();
 }
 
-/* Vinheta: escurece as bordas para dar profundidade (não existe no modo baixo) */
 function drawVignette(){
   if (!Q().vignette) return;
-  const g = ctx.createRadialGradient(CW / 2, CH / 2, Math.min(CW, CH) * 0.35, CW / 2, CH / 2, Math.max(CW, CH) * 0.75);
+  var g = ctx.createRadialGradient(CW / 2, CH / 2, Math.min(CW, CH) * 0.35, CW / 2, CH / 2, Math.max(CW, CH) * 0.75);
   g.addColorStop(0, 'rgba(0,0,0,0)');
   g.addColorStop(1, 'rgba(10,5,2,.45)');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1075,21 +988,17 @@ function drawVignette(){
   ctx.fillRect(0, 0, CW, CH);
 }
 
-/* Botão DASH apagado durante a recarga */
-const dashBtn = document.querySelector('.tbtn[data-k="dash"]');
+var dashBtn = $('bDash');
 function updateDashButton(){
-  if (!dashBtn) return;
-  const ready = p && p.dashCd === 0 && p.dashT === 0;
+  var ready = p && p.dashCd === 0 && p.dashT === 0;
   dashBtn.style.opacity = ready ? 1 : 0.4;
 }
 
 function draw(){
-  // Limpa a tela inteira (inclusive faixas laterais, se existirem)
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#24170d';
   ctx.fillRect(0, 0, CW, CH);
 
-  // Mundo em coordenadas lógicas
   ctx.setTransform(SCALE, 0, 0, SCALE, 0, OFFY);
   drawSky();
   if (level){
@@ -1107,7 +1016,7 @@ function draw(){
   }
   drawHUD();
   if (flash > 0){
-    ctx.fillStyle = `rgba(200,30,20,${flash / 45})`;
+    ctx.fillStyle = 'rgba(200,30,20,' + (flash / 45) + ')';
     ctx.fillRect(-200, -200, VW + 400, H + 400);
   }
   drawVignette();
@@ -1115,42 +1024,27 @@ function draw(){
 }
 
 /* =========================================================
-   MEDIDOR DE FPS
+   LOOP PRINCIPAL (requestAnimationFrame + passo fixo)
    ========================================================= */
-const fpsBox = $('fpsBox');
-let fpsFrames = 0, fpsSince = performance.now();
+var fpsBox = $('fpsBox');
+var fpsFrames = 0, fpsSince = 0;
+var acc = 0, last = 0, lastDraw = 0;
 
-/* =========================================================
-   LOOP PRINCIPAL
-   Usa MessageChannel em vez de requestAnimationFrame, então
-   não fica preso aos 60 Hz da tela.
-   FPS_CAP: 0 = sem limite; 30, 60, 120, 144... = limite.
-   Observação: a tela só mostra o que o monitor consegue exibir.
-   ========================================================= */
-const loopChannel = new MessageChannel();
-let acc = 0, last = performance.now(), lastDraw = 0;
+function frame(now){
+  requestAnimationFrame(frame);
 
-loopChannel.port1.onmessage = () => {
-  const now = performance.now();
-  const minGap = FPS_CAP > 0 ? 1000 / FPS_CAP : 0;
-
-  // Limite de FPS: se ainda não passou o intervalo, só agenda o próximo tick
-  if (now - lastDraw < minGap - 0.5){
-    loopChannel.port2.postMessage(0);
-    return;
-  }
+  if (FPS_CAP > 0 && now - lastDraw < 1000 / FPS_CAP - 0.5) return;
   lastDraw = now;
 
-  // Contador de FPS (atualiza a cada 0,5 s)
+  if (!fpsSince) fpsSince = now;
   fpsFrames++;
   if (now - fpsSince >= 500){
-    const fps = Math.round(fpsFrames * 1000 / (now - fpsSince));
-    fpsBox.textContent = `FPS: ${fps}`;
+    fpsBox.textContent = 'FPS: ' + Math.round(fpsFrames * 1000 / (now - fpsSince));
     fpsFrames = 0;
     fpsSince = now;
   }
 
-  // Física em passo fixo (60 atualizações por segundo, independente do FPS)
+  if (!last) last = now;
   acc += Math.min(now - last, 200);
   last = now;
   while (acc >= STEP){
@@ -1161,19 +1055,16 @@ loopChannel.port1.onmessage = () => {
     t++;
     acc -= STEP;
   }
-
   draw();
-  loopChannel.port2.postMessage(0);
-};
+}
 
 /* =========================================================
-   ENTRADA: teclado, toque e eventos da janela
+   ENTRADA
    ========================================================= */
-const isTouch = matchMedia('(pointer:coarse)').matches || navigator.maxTouchPoints > 0;
+var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) ||
+              /Nintendo|Switch/i.test(navigator.userAgent);
 if (isTouch) document.body.classList.add('touch');
 
-/* Dash é ação instantânea (dispara a cada toque/tecla).
-   Andar e pular são contínuos (ativos enquanto pressionados). */
 function press(a){
   if (state !== 'playing') return;
   if (a === 'dash'){ startDash(); return; }
@@ -1181,27 +1072,21 @@ function press(a){
   inp[a] = true;
 }
 function release(a){ inp[a] = false; }
-function resetInputs(){ for (const k in inp) inp[k] = false; }
+function resetInputs(){ inp.left = false; inp.right = false; inp.jump = false; }
 
-window.addEventListener('keydown', e => {
-  // Frase secreta: acumula as letras digitadas
+window.addEventListener('keydown', function (e){
   if (e.key && e.key.length === 1){
     secretBuf = (secretBuf + e.key.toLowerCase()).slice(-SECRET.length);
-    if (secretBuf === SECRET){
-      secretBuf = '';
-      cheatWin();
-      return;
-    }
+    if (secretBuf === SECRET){ secretBuf = ''; cheatWin(); return; }
   }
 
-  const c = e.code;
-  if (KEYMAP[c] || c === 'Space') e.preventDefault();
+  var c = e.code;
+  if (KEYMAP[c] || c === 'Space') { if (e.preventDefault) e.preventDefault(); }
 
-  // Quiz: só aceita 1 a 4 e Enter para avançar; ignora repetições automáticas
   if (state === 'quiz'){
     if (e.repeat) return;
-    const map = { Digit1:0, Digit2:1, Digit3:2, Digit4:3 };
-    if (!answered && c in map) answer(map[c]);
+    var map = { Digit1:0, Digit2:1, Digit3:2, Digit4:3 };
+    if (!answered && (c in map)) answer(map[c]);
     if (answered && c === 'Enter') nextLevel();
     return;
   }
@@ -1214,45 +1099,59 @@ window.addEventListener('keydown', e => {
     else if (state === 'paused') resumeGame();
   }
   if (c === 'Enter' && (state === 'menu' || state === 'gameover' || state === 'win')){
-    e.preventDefault();
     startGame();
   }
-});
-window.addEventListener('keyup', e => {
-  const a = KEYMAP[e.code];
+}, false);
+
+window.addEventListener('keyup', function (e){
+  var a = KEYMAP[e.code];
   if (a) release(a);
-});
-window.addEventListener('blur', resetInputs);
-document.addEventListener('visibilitychange', () => {
+}, false);
+
+window.addEventListener('blur', resetInputs, false);
+document.addEventListener('visibilitychange', function (){
   if (document.hidden){ resetInputs(); pauseGame(); }
-});
+}, false);
 
-/* Botões de toque: captura o ponteiro para não perder o "soltar" */
-document.querySelectorAll('.tbtn').forEach(b => {
-  const k = b.dataset.k;
-  b.addEventListener('pointerdown', e => {
-    e.preventDefault();
-    b.setPointerCapture(e.pointerId);
-    b.classList.add('on');
-    press(k);
-  });
-  const up = e => {
-    e.preventDefault();
-    b.classList.remove('on');
-    release(k);
-  };
-  b.addEventListener('pointerup', up);
-  b.addEventListener('pointercancel', up);
-  b.addEventListener('lostpointercapture', up);
-});
+/* Botões de toque (touch e mouse) */
+var tbtns = document.querySelectorAll('.tbtn');
+for (var bi = 0; bi < tbtns.length; bi++){
+  (function (b){
+    var k = b.getAttribute('data-k');
+    var down = function (e){
+      if (e.preventDefault) e.preventDefault();
+      b.className += ' on';
+      press(k);
+    };
+    var up = function (e){
+      if (e.preventDefault) e.preventDefault();
+      b.className = b.className.replace(' on', '');
+      release(k);
+    };
+    b.addEventListener('touchstart', down, false);
+    b.addEventListener('touchend', up, false);
+    b.addEventListener('touchcancel', up, false);
+    b.addEventListener('mousedown', down, false);
+    b.addEventListener('mouseup', up, false);
+    b.addEventListener('mouseleave', up, false);
+  })(tbtns[bi]);
+}
 
-/* Qualidade gráfica: cicla Baixo -> Médio -> Alto */
-const gfxBtn = $('gfxBtn');
-function refreshGfxBtn(){ gfxBtn.textContent = `Gráficos: ${Q().label}`; }
-gfxBtn.onclick = () => {
+/* Qualidade gráfica */
+var gfxBtn = $('gfxBtn');
+function refreshGfxBtn(){ gfxBtn.textContent = 'Gráficos: ' + Q().label; }
+gfxBtn.onclick = function (){
   quality = QORDER[(QORDER.indexOf(quality) + 1) % QORDER.length];
   refreshGfxBtn();
   resize();
+};
+
+/* Seletor de personagem */
+var charBtn = $('btnChar');
+function refreshCharBtn(){ charBtn.textContent = 'Personagem: ' + CH().name; }
+charBtn.onclick = function (){
+  charIdx = (charIdx + 1) % CHARS.length;
+  refreshCharBtn();
 };
 
 $('btnStart').onclick = startGame;
@@ -1261,20 +1160,20 @@ $('btnWinRestart').onclick = startGame;
 $('btnResume').onclick = resumeGame;
 $('qNext').onclick = nextLevel;
 $('fsBtn').onclick = toggleFullscreen;
-document.querySelectorAll('button').forEach(b => b.addEventListener('click', () => b.blur()));
 
-window.addEventListener('resize', resize);
-window.addEventListener('orientationchange', resize);
+window.addEventListener('resize', resize, false);
+window.addEventListener('orientationchange', resize, false);
 
 /* =========================================================
    INICIALIZAÇÃO
    ========================================================= */
 refreshGfxBtn();
+refreshCharBtn();
 resize();
 level = buildLevel(0);
 p = makePlayer(60, GROUND_Y - PH);
 showOnly('menu');
-loopChannel.port2.postMessage(0);
+requestAnimationFrame(frame);
 </script>
 </body>
 </html>
