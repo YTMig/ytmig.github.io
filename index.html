@@ -163,7 +163,7 @@ var DASH_COOLDOWN = 45;
 var PW = 26, PH = 40;
 var GROUND_Y = 400;
 var STEP = 1000 / 60;
-var FPS_CAP = 0;              // 0 = sem limite (o navegador limita à taxa da tela)
+var FPS_CAP = 0;
 var MIN_VW = 600;
 var LIVES_MAX = 3;
 var QUIZ_DELAY = 700;
@@ -185,7 +185,7 @@ var CHARS = [
   { name:'Prenda',  poncho:['#c2557a','#7a2a48'], band:'#e8b44a', lenco:'#e8b44a', hat:'#3a2418', hatType:'none', dress:true  }
 ];
 var charIdx = 0;
-function CH() { return CHARS[charIdx]; }
+function curChar() { return CHARS[charIdx]; }
 
 var SECRET = 'daviculpado';
 var secretBuf = '';
@@ -823,12 +823,11 @@ function drawShadow(){
 
 /* Desenha o personagem escolhido (origem no topo da cabeça) */
 function drawBody(cx, top, k, air){
-  var c = CH();
+  var c = curChar();
   ctx.save();
   ctx.translate(cx + PW / 2, top);
   ctx.scale(p.facing, 1);
 
-  // Pernas e botas
   var l1 = air ? -6 : k * 6, l2 = air ? 6 : -k * 6;
   ctx.strokeStyle = '#5a3d22';
   ctx.lineWidth = 5;
@@ -841,7 +840,6 @@ function drawBody(cx, top, k, air){
   ctx.fillRect(-5 + l1, 35, 8, 5);
   ctx.fillRect(-1 + l2, 35, 8, 5);
 
-  // Corpo: poncho ou saia (prenda)
   if (c.dress){
     ctx.fillStyle = c.poncho[0];
     ctx.beginPath();
@@ -861,19 +859,16 @@ function drawBody(cx, top, k, air){
     ctx.fillRect(-9, 22, 18, 2);
   }
 
-  // Lenço no pescoço
   ctx.fillStyle = c.lenco;
   ctx.beginPath();
   ctx.moveTo(-5, 10); ctx.lineTo(5, 10); ctx.lineTo(0, 15);
   ctx.closePath(); ctx.fill();
 
-  // Cabeça e olho
   ctx.fillStyle = '#d9a77a';
   ctx.beginPath(); ctx.arc(0, 8, 5.5, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#1d1208';
   ctx.fillRect(1.5, 6.5, 1.8, 1.8);
 
-  // Cabelo / chapéu conforme o personagem
   if (c.dress){
     ctx.fillStyle = c.hat;
     ctx.beginPath(); ctx.arc(0, 6, 6.5, Math.PI, 0); ctx.fill();
@@ -1148,7 +1143,7 @@ gfxBtn.onclick = function (){
 
 /* Seletor de personagem */
 var charBtn = $('btnChar');
-function refreshCharBtn(){ charBtn.textContent = 'Personagem: ' + CH().name; }
+function refreshCharBtn(){ charBtn.textContent = 'Personagem: ' + curChar().name; }
 charBtn.onclick = function (){
   charIdx = (charIdx + 1) % CHARS.length;
   refreshCharBtn();
