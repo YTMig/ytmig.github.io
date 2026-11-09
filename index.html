@@ -149,7 +149,7 @@
    ========================================================= */
 var $ = function (id) { return document.getElementById(id); };
 var canvas = $('game');
-var ctx = canvas.getContext('2d');
+var ctx = canvas.getContext('2d', { alpha: false });
 
 var H = 480;
 var G = 0.55;
@@ -246,6 +246,86 @@ function overlap(ax, ay, aw, ah, bx, by, bw, bh){
 }
 
 /* =========================================================
+   OTIMIZAÇÃO: caches de gradientes, sprites e cenário
+   (evita recriar gradientes e redesenhar cenário todo frame)
+   ========================================================= */
+var GRAD = {};
+function getGrad(key, x0, y0, x1, y1, stops){
+  var g = GRAD[key];
+  if (!g){
+    g = ctx.createLinearGradient(x0, y0, x1, y1);
+    for (var i = 0; i < stops.length; i += 2) g.addColorStop(stops[i], stops[i + 1]);
+    GRAD[key] = g;
+  }
+  return g;
+}
+
+/* Brilho do sol pré-renderizado */
+var SUN_CV = document.createElement('canvas');
+SUN_CV.width = SUN_CV.height = 380;
+(function (){
+  var c = SUN_CV.getContext('2d');
+  var g = c.createRadialGradient(190, 190, 10, 190, 190, 190);
+  g.addColorStop(0, 'rgba(255,245,210,1)');
+  g.addColorStop(0.22, 'rgba(255,220,150,.5)');
+  g.addColorStop(1, 'rgba(255,200,120,0)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, 380, 380);
+})();
+
+/* Sprites de nuvem (3 tamanhos, pré-desenhados) */
+var CLOUD_CV = [];
+(function (){
+  for (var i = 0; i < 3; i++){
+    var cv = document.createElement('canvas');
+    cv.width = 96; cv.height = 64;
+    var c = cv.getContext('2d');
+    c.fillStyle = 'rgba(255,246,230,.82)';
+    c.beginPath();
+    c.arc(24, 34, 18, 0, Math.PI * 2);
+    c.arc(46, 26, 22, 0, Math.PI * 2);
+    c.arc(70, 34, 16, 0, Math.PI * 2);
+    c.fill();
+    CLOUD_CV.push(cv);
+  }
+})();
+
+/* Sprites de árvore (tons escuro e claro) */
+function treeSprite(dark){
+  var cv = document.createElement('canvas');
+  cv.width = 40; cv.height = 64;
+  var c = cv.getContext('2d');
+  c.fillStyle = dark ? '#2a2a1e' : '#3d4f2e';
+  c.fillRect(17, 32, 6, 30);
+  c.fillStyle = dark ? '#1f2a1a' : '#2f4a2a';
+  c.beginPath();
+  c.ellipse(20, 24, 18, 20, 0, 0, Math.PI * 2);
+  c.fill();
+  return cv;
+}
+var TREE_DARK = treeSprite(true), TREE_LIGHT = treeSprite(false);
+
+/* Sprite de galpão */
+var RANCH_CV = document.createElement('canvas');
+RANCH_CV.width = 60; RANCH_CV.height = 64;
+(function (){
+  var c = RANCH_CV.getContext('2d');
+  c.fillStyle = '#2d2016';
+  c.fillRect(6, 34, 46, 26);
+  c.beginPath();
+  c.moveTo(2, 34); c.lineTo(29, 18); c.lineTo(56, 34);
+  c.closePath(); c.fill();
+  c.fillStyle = 'rgba(255,200,110,.7)';
+  c.fillRect(14, 42, 8, 8);
+  c.fillRect(36, 42, 8, 8);
+  c.fillRect(42, 2, 4, 16);
+})();
+
+/* Camadas de morro pré-renderizadas (re-geradas só quando a câmera anda) */
+var HILL_LAYERS = [];
+var HILL_REBUILD = 16;
+
+/* =========================================================
    GERADOR DE FASES (determinístico)
    ========================================================= */
 function buildLevel(i){
@@ -304,6 +384,7 @@ function resize(){
   SCALE = Math.min(CH / H, CW / MIN_VW);
   VW = CW / SCALE;
   OFFY = (CH - H * SCALE) / 2;
+  buildVignette();
 }
 
 var inp = { left:false, right:false, jump:false };
@@ -590,45 +671,54 @@ for (var di = 0; di < 40; di++){
   dust.push({ x: hash(di * 2.3) * 1200, y: 150 + hash(di * 4.1) * 280, s: 0.4 + hash(di) * 1.2 });
 }
 
-function drawCloud(x, y, s){
-  ctx.fillStyle = 'rgba(255,246,230,.82)';
-  ctx.beginPath();
-  ctx.arc(x, y, 18 * s, 0, Math.PI * 2);
-  ctx.arc(x + 22 * s, y - 8 * s, 22 * s, 0, Math.PI * 2);
-  ctx.arc(x + 46 * s, y, 16 * s, 0, Math.PI * 2);
-  ctx.fill();
-}
-
 function hillLayer(par, colorTop, colorBot, base, amp, seed){
-  var g = ctx.createLinearGradient(0, base - amp, 0, H + 60);
-  g.addColorStop(0, colorTop);
-  g.addColorStop(1, colorBot);
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.moveTo(-20, H + 60);
-  for (var x = -20; x <= VW + 20; x += 12){
-    var wx = x + cam * par;
-    var y = base + Math.sin(wx * 0.008 + seed) * amp + Math.sin(wx * 0.021 + seed * 1.7) * amp * 0.4;
-    ctx.lineTo(x, y);
+  var st = null;
+  for (var i = 0; i < HILL_LAYERS.length; i++){
+    if (HILL_LAYERS[i].par === par){ st = HILL_LAYERS[i]; break; }
   }
-  ctx.lineTo(VW + 20, H + 60);
-  ctx.closePath();
-  ctx.fill();
+  var top = Math.round(base - amp * 1.5 - 10);
+  var h = (H + 60) - top;
+  var wantW = Math.ceil(VW + 80);
+  if (!st){
+    var cv = document.createElement('canvas');
+    cv.width = wantW; cv.height = h;
+    var bx = cv.getContext('2d');
+    var g = bx.createLinearGradient(0, base - amp - top, 0, h);
+    g.addColorStop(0, colorTop);
+    g.addColorStop(1, colorBot);
+    st = { par: par, cv: cv, g: g, r0: -1e9, top: top, h: h };
+    HILL_LAYERS.push(st);
+  }
+  var off = cam * par;
+  if (Math.abs(off - st.r0) > HILL_REBUILD || st.cv.width !== wantW){
+    var cx = st.cv.getContext('2d');
+    if (st.cv.width !== wantW) st.cv.width = wantW;
+    st.r0 = off;
+    cx.clearRect(0, 0, st.cv.width, h);
+    cx.fillStyle = st.g;
+    cx.beginPath();
+    cx.moveTo(0, h);
+    for (var x = 0; x <= st.cv.width; x += 12){
+      var wx = x - 40 + off;
+      var y = base + Math.sin(wx * 0.008 + seed) * amp + Math.sin(wx * 0.021 + seed * 1.7) * amp * 0.4;
+      cx.lineTo(x, y - top);
+    }
+    cx.lineTo(st.cv.width, h);
+    cx.closePath();
+    cx.fill();
+  }
+  ctx.drawImage(st.cv, -(off - st.r0) - 40, top);
 }
 
-function trees(par, by, scale, dark){
+function trees(par, by, dark){
   var step = 170;
   var first = Math.floor((cam * par) / step) - 1;
   var n = Math.ceil(VW / step) + 3;
+  var spr = dark ? TREE_DARK : TREE_LIGHT;
   for (var k = first; k < first + n; k++){
-    var h = (0.6 + hash(k) * 0.5) * scale;
+    var h = 0.6 + hash(k) * 0.5;
     var sx = k * step - cam * par + hash(k + 9) * 30;
-    ctx.fillStyle = dark ? '#2a2a1e' : '#3d4f2e';
-    ctx.fillRect(sx - 3, by - 30 * h, 6, 30 * h);
-    ctx.fillStyle = dark ? '#1f2a1a' : '#2f4a2a';
-    ctx.beginPath();
-    ctx.ellipse(sx, by - 38 * h, 18 * h, 20 * h, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.drawImage(spr, sx - 20 * h, by - 62 * h, 40 * h, 64 * h);
   }
 }
 
@@ -637,27 +727,13 @@ function ranch(par, by){
   var first = Math.floor((cam * par) / step) - 1;
   for (var k = first; k < first + Math.ceil(VW / step) + 3; k++){
     var sx = k * step + 180 - cam * par;
-    ctx.fillStyle = '#2d2016';
-    ctx.fillRect(sx, by - 26, 46, 26);
-    ctx.beginPath();
-    ctx.moveTo(sx - 4, by - 26); ctx.lineTo(sx + 23, by - 42); ctx.lineTo(sx + 50, by - 26);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = 'rgba(255,200,110,.7)';
-    ctx.fillRect(sx + 8, by - 18, 8, 8);
-    ctx.fillRect(sx + 30, by - 18, 8, 8);
-    ctx.fillRect(sx + 36, by - 58, 4, 16);
+    ctx.drawImage(RANCH_CV, sx - 6, by - 60);
   }
 }
 
 function drawSky(){
-  var g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#152a47');
-  g.addColorStop(0.3, '#2f5778');
-  g.addColorStop(0.58, '#d9785a');
-  g.addColorStop(0.8, '#f0a866');
-  g.addColorStop(1, '#f8cf86');
-  ctx.fillStyle = g;
-  ctx.fillRect(-100, -400, VW + 200, H + 800);
+  ctx.fillStyle = getGrad('sky', 0, 0, 0, H, [0, '#152a47', 0.3, '#2f5778', 0.58, '#d9785a', 0.8, '#f0a866', 1, '#f8cf86']);
+  ctx.fillRect(-4, -4, VW + 8, H + 8);
 
   var nStars = Q().stars;
   for (var i = 0; i < nStars; i++){
@@ -669,12 +745,7 @@ function drawSky(){
   }
 
   var sx = VW * 0.72 - cam * 0.02, sy = 120;
-  var sg = ctx.createRadialGradient(sx, sy, 10, sx, sy, 190);
-  sg.addColorStop(0, 'rgba(255,245,210,1)');
-  sg.addColorStop(0.22, 'rgba(255,220,150,.5)');
-  sg.addColorStop(1, 'rgba(255,200,120,0)');
-  ctx.fillStyle = sg;
-  ctx.fillRect(sx - 190, sy - 190, 380, 380);
+  ctx.drawImage(SUN_CV, sx - 190, sy - 190);
   ctx.fillStyle = '#fff6dc';
   ctx.beginPath(); ctx.arc(sx, sy, 36, 0, Math.PI * 2); ctx.fill();
 
@@ -683,22 +754,26 @@ function drawSky(){
   for (var ci2 = 0; ci2 < nClouds; ci2++){
     var c = CLOUDS[ci2];
     var cx = ((c.x - cam * 0.08) % span + span) % span - 150;
-    drawCloud(cx, c.y, c.s);
+    var spr = CLOUD_CV[ci2 % 3];
+    ctx.drawImage(spr, cx - 24 * c.s, c.y - 34 * c.s, 96 * c.s, 64 * c.s);
   }
 
   hillLayer(0.08, '#6b6f94', '#4a5070', 265, 22, 1.3);
   hillLayer(0.15, '#8c6a8f', '#5e4a6b', 300, 36, 0.5);
   ranch(0.2, 330);
   hillLayer(0.3, '#6f8a52', '#4d6a3a', 340, 28, 2.1);
-  trees(0.3, 352, 1, true);
+  trees(0.3, 352, true);
   hillLayer(0.55, '#5a7d42', '#3b5a2c', 380, 16, 4.0);
-  trees(0.55, 392, 0.8, false);
+  trees(0.55, 392, false);
 }
 
 function drawGround(pl){
-  var g = ctx.createLinearGradient(0, pl.y, 0, pl.y + pl.h);
-  g.addColorStop(0, '#7a5232');
-  g.addColorStop(1, '#3f2615');
+  var g = pl.grad;
+  if (!g){
+    g = pl.grad = ctx.createLinearGradient(0, pl.y, 0, pl.y + pl.h);
+    g.addColorStop(0, '#7a5232');
+    g.addColorStop(1, '#3f2615');
+  }
   ctx.fillStyle = g;
   ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
 
@@ -730,9 +805,12 @@ function drawPlank(pl){
   ctx.fillRect(pl.x + 6, pl.y + pl.h, 6, 14);
   ctx.fillRect(pl.x + pl.w - 12, pl.y + pl.h, 6, 14);
 
-  var g = ctx.createLinearGradient(0, pl.y, 0, pl.y + pl.h);
-  g.addColorStop(0, '#b68652');
-  g.addColorStop(1, '#6b4527');
+  var g = pl.gradP;
+  if (!g){
+    g = pl.gradP = ctx.createLinearGradient(0, pl.y, 0, pl.y + pl.h);
+    g.addColorStop(0, '#b68652');
+    g.addColorStop(1, '#6b4527');
+  }
   ctx.fillStyle = g;
   ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
 
@@ -973,20 +1051,33 @@ function drawHUD(){
   }
 }
 
-function drawVignette(){
-  if (!Q().vignette) return;
-  var g = ctx.createRadialGradient(CW / 2, CH / 2, Math.min(CW, CH) * 0.35, CW / 2, CH / 2, Math.max(CW, CH) * 0.75);
+var VIGN = null;
+function buildVignette(){
+  if (!Q().vignette){ VIGN = null; return; }
+  VIGN = document.createElement('canvas');
+  VIGN.width = CW; VIGN.height = CH;
+  var c = VIGN.getContext('2d');
+  var g = c.createRadialGradient(CW / 2, CH / 2, Math.min(CW, CH) * 0.35, CW / 2, CH / 2, Math.max(CW, CH) * 0.75);
   g.addColorStop(0, 'rgba(0,0,0,0)');
   g.addColorStop(1, 'rgba(10,5,2,.45)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, CW, CH);
+}
+function drawVignette(){
+  if (!VIGN) return;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, CW, CH);
+  ctx.drawImage(VIGN, 0, 0);
 }
 
 var dashBtn = $('bDash');
+var dashBtnOn = -1;
 function updateDashButton(){
   var ready = p && p.dashCd === 0 && p.dashT === 0;
-  dashBtn.style.opacity = ready ? 1 : 0.4;
+  var st = ready ? 1 : 0;
+  if (st !== dashBtnOn){
+    dashBtnOn = st;
+    dashBtn.style.opacity = ready ? 1 : 0.4;
+  }
 }
 
 function draw(){
@@ -1012,7 +1103,7 @@ function draw(){
   drawHUD();
   if (flash > 0){
     ctx.fillStyle = 'rgba(200,30,20,' + (flash / 45) + ')';
-    ctx.fillRect(-200, -200, VW + 400, H + 400);
+    ctx.fillRect(-4, -4, VW + 8, H + 8);
   }
   drawVignette();
   updateDashButton();
@@ -1021,6 +1112,22 @@ function draw(){
 /* =========================================================
    LOOP PRINCIPAL (requestAnimationFrame + passo fixo)
    ========================================================= */
+var fpsHist = [], lastAuto = 0;
+function autoQuality(fps, now){
+  fpsHist.push(fps);
+  if (fpsHist.length > 6) fpsHist.shift();
+  if (state !== 'playing' || quality === 'low') return;
+  if (now - lastAuto < 10000 || fpsHist.length < 4) return;
+  for (var i = fpsHist.length - 4; i < fpsHist.length; i++){
+    if (fpsHist[i] >= 40) return;
+  }
+  quality = QORDER[QORDER.indexOf(quality) - 1];
+  lastAuto = now;
+  refreshGfxBtn();
+  resize();
+  toast('Gráficos: ' + Q().label + ' (automático)');
+}
+
 var fpsBox = $('fpsBox');
 var fpsFrames = 0, fpsSince = 0;
 var acc = 0, last = 0, lastDraw = 0;
@@ -1034,9 +1141,11 @@ function frame(now){
   if (!fpsSince) fpsSince = now;
   fpsFrames++;
   if (now - fpsSince >= 500){
-    fpsBox.textContent = 'FPS: ' + Math.round(fpsFrames * 1000 / (now - fpsSince));
+    var curFps = Math.round(fpsFrames * 1000 / (now - fpsSince));
+    fpsBox.textContent = 'FPS: ' + curFps;
     fpsFrames = 0;
     fpsSince = now;
+    autoQuality(curFps, now);
   }
 
   if (!last) last = now;
