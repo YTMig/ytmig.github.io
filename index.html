@@ -71,6 +71,13 @@
   #bRight { left:100px; }
   #bJump  { right:14px; }
   #bDash  { right:100px; bottom:22px; }
+
+  /* Telas estreitas: evita sobreposição dos botões do topo */
+  @media (max-width: 460px){
+    .topBtn { font-size:12px; padding:5px 8px; }
+    #gfxBtn { top:44px; right:8px; }
+    #fpsBox { top:44px; right:auto; left:8px; }
+  }
 </style>
 </head>
 <body>
@@ -156,7 +163,7 @@ var ctx = canvas.getContext('2d', { alpha: false });
 var H = 480;
 var G = 0.55;
 var JUMP = -11.2;
-var JUMP_CUT = -3.2;
+var JUMP_CUT = -5.5; /* corte de pulo: soltar cedo reduz a altura, mas sem pulinhos minúsculos */
 var MAX_FALL = 14;
 var SPEED = 4.2;
 var DASH_V = 10;
@@ -397,7 +404,7 @@ var KEYMAP = {
 
 function makePlayer(x, y){
   return { x:x, y:y, vx:0, vy:0, onGround:false, coyote:0, jumpBuf:0, airJumps:1,
-           facing:1, invuln:0, dashT:0, dashCd:0, cp:{ x:x, y:y } };
+           facing:1, invuln:0, dashT:0, dashCd:0, cut:true, cp:{ x:x, y:y } };
 }
 
 function burst(x, y, color, n){
@@ -595,14 +602,16 @@ function update(){
   if (p.jumpBuf > 0){
     if (p.coyote > 0){
       p.vy = JUMP; p.coyote = 0; p.onGround = false; p.jumpBuf = 0;
+      p.cut = inp.jump; // corte de pulo só se o botão ainda está apertado no lançamento
     } else if (p.airJumps > 0){
       p.vy = JUMP * 0.85; p.airJumps--; p.jumpBuf = 0;
+      p.cut = inp.jump;
       burst(p.x + PW / 2, p.y + PH, '#f4ead5', 8);
     } else {
       p.jumpBuf--;
     }
   }
-  if (!inp.jump && p.vy < JUMP_CUT) p.vy = JUMP_CUT;
+  if (!inp.jump && p.cut && p.vy < JUMP_CUT) p.vy = JUMP_CUT;
   p.vy = Math.min(p.vy + G, MAX_FALL);
 
   p.x += p.vx;
@@ -1193,7 +1202,7 @@ function press(a){
   inp[a] = true;
 }
 function release(a){ inp[a] = false; }
-function resetInputs(){ inp.left = false; inp.right = false; inp.jump = false; }
+function resetInputs(){ inp.left = false; inp.right = false; inp.jump = false; if (p) p.jumpBuf = 0; }
 
 window.addEventListener('keydown', function (e){
   if (e.key && e.key.length === 1){
@@ -1283,7 +1292,10 @@ $('qNext').onclick = nextLevel;
 $('fsBtn').onclick = toggleFullscreen;
 
 window.addEventListener('resize', resize, false);
-window.addEventListener('orientationchange', resize, false);
+window.addEventListener('orientationchange', function (){
+  resize();
+  setTimeout(resize, 80); // mobile às vezes reporta medidas antigas na rotação
+}, false);
 
 /* =========================================================
    INICIALIZAÇÃO
