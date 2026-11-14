@@ -2,1316 +2,543 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Travessia do Pampa · Parkour com Simões Lopes Neto</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZapZap · Chat de texto e voz</title>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
-  html, body {
-    width:100%; height:100%; overflow:hidden; background:#24170d;
-    font-family:Georgia,'Trebuchet MS',serif; color:#f4ead5;
+  html, body { height:100%; }
+  body {
+    font-family:'Segoe UI', Arial, sans-serif; background:#d9d4c8;
     -webkit-user-select:none; user-select:none;
   }
-  #game { position:fixed; left:0; top:0; width:100%; height:100%; display:block; }
+  input, textarea { -webkit-user-select:text; user-select:text; }
 
-  .overlay {
-    position:fixed; top:0; left:0; right:0; bottom:0; z-index:10;
-    background:rgba(18,11,6,.92); text-align:center;
-    padding:16px; overflow-y:auto;
+  /* ===== TELA INICIAL ===== */
+  #telaEntrada {
+    position:fixed; inset:0; z-index:10; background:#0b141a;
+    display:flex; align-items:center; justify-content:center; padding:18px;
   }
-  .overlay .box { padding-top:30px; }
+  .entradaBox {
+    background:#111b21; color:#e9edef; border-radius:16px; padding:28px 24px;
+    width:100%; max-width:380px; text-align:center;
+    box-shadow:0 10px 40px rgba(0,0,0,.5);
+  }
+  .entradaBox h1 { color:#25d366; font-size:26px; margin-bottom:4px; }
+  .entradaBox .sub { color:#8696a0; font-size:13px; margin-bottom:18px; }
+  .campo { width:100%; background:#2a3942; border:0; border-radius:10px;
+           color:#e9edef; padding:12px 14px; font-size:15px; margin-bottom:10px; outline:none; }
+  .campo::placeholder { color:#8696a0; }
+  .btnVerde {
+    width:100%; background:#00a884; color:#fff; border:0; border-radius:10px;
+    padding:12px; font:bold 16px 'Segoe UI', Arial, sans-serif; cursor:pointer; margin-bottom:10px;
+  }
+  .btnVerde.secundario { background:#2a3942; color:#e9edef; }
+  .btnVerde:active { filter:brightness(1.15); }
+  .avisoErro { color:#f15c6d; font-size:13px; min-height:16px; margin-top:4px; }
+  .dica { color:#8696a0; font-size:12px; margin-top:12px; line-height:1.5; }
+
+  /* ===== SALA ===== */
+  #sala { position:fixed; inset:0; display:flex; flex-direction:column; }
   .hidden { display:none !important; }
-  h1 { color:#e8b44a; font-size:30px; margin-bottom:6px; }
-  h2 { color:#e8b44a; font-size:19px; margin:6px 0; }
-  p  { max-width:620px; margin:8px auto; line-height:1.5; font-size:15px; }
-  .keys { color:#cdb98f; font-size:13px; }
-  .btn {
-    display:inline-block; background:#c9962e; color:#2b1a08; border:0;
-    padding:12px 28px; border-radius:10px; font:bold 17px Georgia,serif;
-    margin:8px 6px 0 6px; cursor:pointer;
-  }
-  .btn.alt { background:#8a6a3a; color:#f4ead5; }
-  .opts { width:100%; max-width:640px; margin:12px auto 0 auto; }
-  .opt {
-    display:block; width:100%; margin:6px 0; background:#2d2016; color:#f4ead5;
-    border:2px solid #7a5530; border-radius:10px; padding:12px 14px;
-    font:15px Georgia,serif; text-align:left; cursor:pointer;
-  }
-  .opt.correct { background:#2f6b2c; border-color:#8fd47f; }
-  .opt.wrong { background:#7a2a1f; border-color:#e07a66; }
-  .feedback {
-    margin:12px auto 0 auto; max-width:640px; line-height:1.5; font-size:15px;
-    background:rgba(255,255,255,.08); padding:12px; border-radius:10px;
-  }
 
-  .topBtn {
-    position:fixed; top:8px; z-index:20; background:rgba(0,0,0,.5); color:#fff3d6;
-    border:1px solid rgba(255,255,255,.35); border-radius:8px; padding:6px 10px;
-    font:14px Georgia,serif; cursor:pointer;
+  .topo {
+    background:#005e54; color:#fff; padding:10px 12px; display:flex;
+    align-items:center; gap:10px; flex-shrink:0;
   }
-  #fsBtn { right:8px; }
-  #gfxBtn { right:130px; }
-  #fpsBox {
-    position:fixed; top:44px; right:8px; z-index:20; color:#fff3d6;
-    background:rgba(0,0,0,.4); padding:2px 8px; border-radius:6px;
-    font:12px monospace;
+  .topo .info { flex:1; min-width:0; }
+  .topo .titulo { font:bold 16px 'Segoe UI', Arial, sans-serif; }
+  .topo .status { font-size:12px; opacity:.85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .topoBtn {
+    background:rgba(255,255,255,.15); border:0; color:#fff; border-radius:8px;
+    padding:8px 10px; font-size:16px; cursor:pointer;
   }
+  .topoBtn:disabled { opacity:.35; cursor:default; }
+  .topoBtn.gravando { background:#f15c6d; }
 
-  #touch { position:fixed; left:0; right:0; bottom:0; z-index:15; display:none;
-           height: calc(var(--ts, 76px) + 34px);
-           --ts: 76px; --tss: 62px; --g: 10px; --m: 14px; }
-  body.touch #touch { display:block; }
-  .tbtn {
-    position:absolute; bottom: var(--m); width: var(--ts); height: var(--ts); border-radius:50%;
-    background:rgba(255,240,200,.2); border:2px solid rgba(255,240,200,.5);
-    color:#fff; font:bold calc(var(--ts)*0.32) Georgia,serif; text-align:center;
-    line-height: calc(var(--ts) - 6px);
-    -webkit-user-select:none; user-select:none;
+  #mensagens {
+    flex:1; overflow-y:auto; padding:14px 10px 6px 10px;
+    background:#efeae2; -webkit-user-select:text; user-select:text;
   }
-  .tbtn.small { width: var(--tss); height: var(--tss); font-size: calc(var(--tss)*0.23);
-                line-height: calc(var(--tss) - 4px); bottom: calc(var(--m) + 8px); }
-  .tbtn.on { background:rgba(232,180,74,.7); }
-  #bLeft  { left: var(--m); }
-  #bRight { left: calc(var(--m) + var(--ts) + var(--g)); }
-  #bJump  { right: var(--m); }
-  #bDash  { right: calc(var(--m) + var(--ts) + var(--g)); }
-
-  /* Instruções de como jogar: cada dispositivo vê só as dele */
-  body.touch #howKeys { display:none; }
-  body:not(.touch) #howTouch { display:none; }
-
-  /* Telas estreitas: evita sobreposição dos botões do topo */
-  @media (max-width: 460px){
-    .topBtn { font-size:12px; padding:5px 8px; }
-    #gfxBtn { top:44px; right:8px; }
-    #fpsBox { top:44px; right:auto; left:8px; }
+  .linha { display:flex; margin-bottom:8px; }
+  .linha.eu { justify-content:flex-end; }
+  .bolha {
+    max-width:78%; background:#fff; border-radius:10px; padding:7px 10px 5px 10px;
+    box-shadow:0 1px 1px rgba(0,0,0,.12); word-wrap:break-word;
   }
+  .linha.eu .bolha { background:#d9fdd3; }
+  .bolha .quem { color:#00a884; font:bold 12px 'Segoe UI', Arial, sans-serif; margin-bottom:2px; }
+  .bolha .texto { font-size:15px; line-height:1.4; color:#111b21; white-space:pre-wrap; }
+  .bolha .hora { font-size:10px; color:#667781; text-align:right; margin-top:2px; }
+  .bolha.sistema { background:transparent; box-shadow:none; max-width:100%; }
+  .bolha.sistema .texto { color:#667781; font-size:12px; text-align:center; background:#ffe9c7;
+                          padding:5px 12px; border-radius:8px; }
+
+  .barraInput {
+    flex-shrink:0; background:#f0f2f5; padding:8px; display:flex; gap:8px; align-items:flex-end;
+  }
+  #txtMsg {
+    flex:1; background:#fff; border:0; border-radius:20px; padding:11px 16px;
+    font-size:15px; resize:none; max-height:110px; outline:none; font-family:inherit; line-height:1.4;
+  }
+  #btnEnviar {
+    background:#00a884; border:0; color:#fff; border-radius:50%;
+    width:46px; height:46px; font-size:19px; cursor:pointer; flex-shrink:0;
+  }
+  #btnEnviar:disabled { opacity:.4; }
 </style>
 </head>
 <body>
 
-<canvas id="game"></canvas>
-<button id="fsBtn" class="topBtn">Tela cheia</button>
-<button id="gfxBtn" class="topBtn">Gráficos: Baixo</button>
-<div id="fpsBox">FPS: --</div>
-
-<div id="touch">
-  <button class="tbtn" id="bLeft" data-k="left">&#9664;</button>
-  <button class="tbtn" id="bRight" data-k="right">&#9654;</button>
-  <button class="tbtn small" id="bDash" data-k="dash">DASH</button>
-  <button class="tbtn" id="bJump" data-k="jump">&#8679;</button>
-</div>
-
-<!-- MENU -->
-<div id="menu" class="overlay">
-  <div class="box">
-    <h1>Travessia do Pampa</h1>
-    <h2>Parkour gauchesco com Simões Lopes Neto</h2>
-    <p>Atravesse 10 fases inspiradas nas paisagens, lendas e personagens da obra do autor. Ao chegar ao fim de cada fase, responda a um quiz. Se você acertar as <b>10 perguntas</b>, ganha <b>1 pirulito de verdade</b> no final.</p>
-    <p class="keys" id="howKeys"><b>Teclado:</b> setas ou A/D andam, Espaço ou W pulam, Q dá dash, P pausa.</p>
-    <p class="keys" id="howTouch"><b>Como jogar:</b> use os botões da tela — ◀ ▶ andam, ⇧ pula (pode pular de novo no ar) e DASH dá o impulso rápido.</p>
-    <p class="keys"><b>Quiz:</b> clique na alternativa ou use as teclas 1, 2, 3 e 4.</p>
-    <button id="btnChar" class="btn alt">Personagem: Gaúcho</button>
-    <br>
-    <button id="btnStart" class="btn">Começar</button>
+<!-- TELA INICIAL -->
+<div id="telaEntrada">
+  <div class="entradaBox">
+    <h1>⚡ ZapZap</h1>
+    <div class="sub">Chat de texto e voz · entre com um código de sala</div>
+    <input id="inNome" class="campo" maxlength="20" placeholder="Seu nome" autocomplete="off">
+    <input id="inSala" class="campo" maxlength="6" placeholder="Código da sala (ex.: KP7X2)" autocomplete="off"
+           autocapitalize="characters" style="text-transform:uppercase">
+    <button id="btnCriar" class="btnVerde">Criar sala</button>
+    <button id="btnEntrar" class="btnVerde secundario">Entrar na sala</button>
+    <div id="avisoErro" class="avisoErro"></div>
+    <div class="dica">Crie uma sala e mande o código para quem quiser conversar.
+    Quem entra pela voz compartilha o microfone; texto vai para todos da sala.</div>
   </div>
 </div>
 
-<!-- QUIZ -->
-<div id="quiz" class="overlay hidden">
-  <div class="box">
-    <h2 id="qTitle"></h2>
-    <p id="qText" style="font-size:18px"></p>
-    <div id="qOpts" class="opts"></div>
-    <div id="qFeedback" class="feedback hidden"></div>
-    <button id="qNext" class="btn hidden">Próximo nível</button>
+<!-- SALA -->
+<div id="sala" class="hidden">
+  <div class="topo">
+    <div class="info">
+      <div class="titulo">Sala <span id="lblSala">—</span></div>
+      <div class="status" id="lblStatus">conectando…</div>
+    </div>
+    <button id="btnVoz" class="topoBtn" title="Entrar na chamada de voz">🎙 Entrar na voz</button>
+    <button id="btnMudo" class="topoBtn hidden" title="Silenciar microfone">🔇</button>
+    <button id="btnCopiar" class="topoBtn" title="Copiar código da sala">📋</button>
+    <button id="btnSair" class="topoBtn" title="Sair da sala">✖</button>
+  </div>
+  <div id="mensagens"></div>
+  <div class="barraInput">
+    <textarea id="txtMsg" rows="1" placeholder="Mensagem"></textarea>
+    <button id="btnEnviar" title="Enviar">➤</button>
   </div>
 </div>
 
-<!-- PAUSA -->
-<div id="pause" class="overlay hidden">
-  <div class="box">
-    <h1>Pausado</h1>
-    <p>Respire um pouco. O pampa espera.</p>
-    <button id="btnResume" class="btn">Continuar</button>
-  </div>
-</div>
-
-<!-- GAME OVER -->
-<div id="gameover" class="overlay hidden">
-  <div class="box">
-    <h1>Game Over</h1>
-    <p>Suas vidas acabaram, mas toda travessia começa de novo.</p>
-    <p>Pontuação final: <b id="goScore">0</b></p>
-    <button id="btnRestart" class="btn">Reiniciar</button>
-  </div>
-</div>
-
-<!-- VITÓRIA -->
-<div id="win" class="overlay hidden">
-  <div class="box">
-    <h1>Travessia concluída!</h1>
-    <p>Você atravessou as 10 fases e conheceu um pouco da obra de Simões Lopes Neto.</p>
-    <p>Pontuação final: <b id="winScore">0</b></p>
-    <p>Perguntas certas: <b id="winCorrect">0</b> de 10</p>
-    <p id="winPrize"></p>
-    <button id="btnWinRestart" class="btn">Jogar de novo</button>
-  </div>
-</div>
-
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 /* =========================================================
-   CONFIGURAÇÃO
+   ZapZap — chat de texto e voz (WebRTC via PeerJS)
+   Salas: código curto. Quem cria a sala fica com o ID fixo
+   "ytmigzap-<CÓDIGO>" e retransmite as mensagens para todos.
    ========================================================= */
 var $ = function (id) { return document.getElementById(id); };
-var canvas = $('game');
-var ctx = canvas.getContext('2d', { alpha: false });
+var PREFIXO = 'ytmigzap-';
 
-var H = 480;
-var G = 0.55;
-var JUMP = -11.2;
-var JUMP_CUT = -5.5; /* corte de pulo: soltar cedo reduz a altura, mas sem pulinhos minúsculos */
-var MAX_FALL = 14;
-var SPEED = 4.2;
-var DASH_V = 10;
-var DASH_FRAMES = 12;
-var DASH_COOLDOWN = 45;
-var PW = 26, PH = 40;
-var GROUND_Y = 400;
-var STEP = 1000 / 60;
-var FPS_CAP = 0;
-var MIN_VW = 600;
-var LIVES_MAX = 3;
-var QUIZ_DELAY = 700;
-
-var QUALITY = {
-  low:    { label:'Baixo', dpr:1,   stars:0,  clouds:4, dust:0,  vignette:false, shadow:false, grass:14 },
-  medium: { label:'Médio', dpr:1.5, stars:35, clouds:9, dust:15, vignette:true,  shadow:true,  grass:9 },
-  high:   { label:'Alto',  dpr:2,   stars:70, clouds:9, dust:40, vignette:true,  shadow:true,  grass:7 }
-};
-var QORDER = ['low', 'medium', 'high'];
-var quality = 'low';
-function Q() { return QUALITY[quality]; }
-
-/* Personagens originais (nenhum é uma pessoa real) */
-var CHARS = [
-  { name:'Gaúcho',  poncho:['#c4482f','#7e2618'], band:'#e8b44a', lenco:'#e0572f', hat:'#2b1d12', hatType:'wide', dress:false },
-  { name:'Chasque', poncho:['#3b6ea5','#1f3d5c'], band:'#e8b44a', lenco:'#e8b44a', hat:'#5a3d22', hatType:'cap',  dress:false },
-  { name:'Peão',    poncho:['#8a6a3a','#4f3a1f'], band:'#f4ead5', lenco:'#f4ead5', hat:'#3a2a18', hatType:'wide', dress:false },
-  { name:'Prenda',  poncho:['#c2557a','#7a2a48'], band:'#e8b44a', lenco:'#e8b44a', hat:'#3a2418', hatType:'none', dress:true  }
-];
-var charIdx = 0;
-function curChar() { return CHARS[charIdx]; }
-
-var SECRET = 'daviculpado';
-var secretBuf = '';
-
-var LEVELS = [
-  'Pelotas, terra natal', 'Campos do Sul', 'O Chasque', 'Coxilhas Verdes',
-  'Galpão Antigo', 'Passo do Rio', 'Negrinho do Pastoreio', 'Querência',
-  'Serenata do Pampa', 'Sol do Entardecer'
-];
-
-var QUIZ = [
-  { q:'Qual obra, publicada em 1912, reúne contos sobre o homem do campo gaúcho?',
-    o:['Dom Quixote','Contos Gauchescos','Os Sertões','Vidas Secas'], a:1,
-    e:'Contos Gauchescos (1912) retrata o gaúcho e o cotidiano do campo com linguagem regional.' },
-  { q:'Em qual estado brasileiro fica Pelotas?',
-    o:['Santa Catarina','Paraná','Rio Grande do Sul','Bahia'], a:2,
-    e:'Pelotas fica no Rio Grande do Sul, o estado mais meridional do Brasil.' },
-  { q:'Qual lenda da tradição gaúcha aparece na obra Lendas do Sul?',
-    o:['Negrinho do Pastoreio','Saci-Pererê','Boitatá','Iara'], a:0,
-    e:'O Negrinho do Pastoreio é uma das lendas mais conhecidas da tradição gaúcha e está entre as histórias registradas pelo autor.' },
-  { q:'Em que ano Simões Lopes Neto nasceu?',
-    o:['1845','1865','1880','1899'], a:1,
-    e:'João Simões Lopes Neto nasceu em 1865.' },
-  { q:'Além de escritor, em qual atividade Simões Lopes Neto também se destacou?',
-    o:['Engenharia ferroviária','Pintura de murais','Pesquisa do folclore e da cultura popular','Futebol profissional'], a:2,
-    e:'Ele também pesquisou o folclore e a cultura popular do Sul, o que alimentou suas narrativas.' },
-  { q:'Em qual cidade gaúcha nasceu João Simões Lopes Neto?',
-    o:['Porto Alegre','Pelotas','Bagé','Santa Maria'], a:1,
-    e:'Ele nasceu em Pelotas, no sul do Rio Grande do Sul, cidade onde viveu grande parte da vida.' },
-  { q:'Em que formato literário estão os Contos Gauchescos?',
-    o:['Poesia épica','Teatro','Narrativas curtas em prosa','Crônica esportiva'], a:2,
-    e:'Os contos são narrativas em prosa, com personagens e cenas do campo gaúcho.' },
-  { q:'Em que ano ele faleceu?',
-    o:['1900','1916','1925','1931'], a:1,
-    e:'Simões Lopes Neto faleceu em 1916, em Pelotas.' },
-  { q:'Qual característica marca a linguagem das obras de Simões Lopes Neto?',
-    o:['Latim clássico','Linguagem regional gaúcha','Inglês arcaico','Português europeu padrão'], a:1,
-    e:'Ele registrou o falar do gaúcho, com palavras e expressões do Sul, valorizando a cultura popular.' },
-  { q:'Qual movimento cultural valoriza as tradições do gaúcho e dialoga com essas obras?',
-    o:['Modernismo paulista','Tradicionalismo gaúcho','Barroco mineiro','Romantismo carioca'], a:1,
-    e:'O tradicionalismo gaúcho valoriza costumes, música e literatura do campo, temas presentes na obra do autor.' }
-];
-
-/* =========================================================
-   UTILITÁRIOS
-   ========================================================= */
-function mulberry32(a){
-  return function(){
-    a |= 0; a = a + 0x6D2B79F5 | 0;
-    var t = Math.imul(a ^ a >>> 15, 1 | a);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-function hash(n){ var s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
-function overlap(ax, ay, aw, ah, bx, by, bw, bh){
-  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
-}
-
-/* =========================================================
-   OTIMIZAÇÃO: caches de gradientes, sprites e cenário
-   (evita recriar gradientes e redesenhar cenário todo frame)
-   ========================================================= */
-var GRAD = {};
-function getGrad(key, x0, y0, x1, y1, stops){
-  var g = GRAD[key];
-  if (!g){
-    g = ctx.createLinearGradient(x0, y0, x1, y1);
-    for (var i = 0; i < stops.length; i += 2) g.addColorStop(stops[i], stops[i + 1]);
-    GRAD[key] = g;
-  }
-  return g;
-}
-
-/* Brilho do sol pré-renderizado */
-var SUN_CV = document.createElement('canvas');
-SUN_CV.width = SUN_CV.height = 380;
-(function (){
-  var c = SUN_CV.getContext('2d');
-  var g = c.createRadialGradient(190, 190, 10, 190, 190, 190);
-  g.addColorStop(0, 'rgba(255,245,210,1)');
-  g.addColorStop(0.22, 'rgba(255,220,150,.5)');
-  g.addColorStop(1, 'rgba(255,200,120,0)');
-  c.fillStyle = g;
-  c.fillRect(0, 0, 380, 380);
-})();
-
-/* Sprites de nuvem (3 tamanhos, pré-desenhados) */
-var CLOUD_CV = [];
-(function (){
-  for (var i = 0; i < 3; i++){
-    var cv = document.createElement('canvas');
-    cv.width = 96; cv.height = 64;
-    var c = cv.getContext('2d');
-    c.fillStyle = 'rgba(255,246,230,.82)';
-    c.beginPath();
-    c.arc(24, 34, 18, 0, Math.PI * 2);
-    c.arc(46, 26, 22, 0, Math.PI * 2);
-    c.arc(70, 34, 16, 0, Math.PI * 2);
-    c.fill();
-    CLOUD_CV.push(cv);
-  }
-})();
-
-/* Sprites de árvore (tons escuro e claro) */
-function treeSprite(dark){
-  var cv = document.createElement('canvas');
-  cv.width = 40; cv.height = 64;
-  var c = cv.getContext('2d');
-  c.fillStyle = dark ? '#2a2a1e' : '#3d4f2e';
-  c.fillRect(17, 32, 6, 30);
-  c.fillStyle = dark ? '#1f2a1a' : '#2f4a2a';
-  c.beginPath();
-  c.ellipse(20, 24, 18, 20, 0, 0, Math.PI * 2);
-  c.fill();
-  return cv;
-}
-var TREE_DARK = treeSprite(true), TREE_LIGHT = treeSprite(false);
-
-/* Sprite de galpão */
-var RANCH_CV = document.createElement('canvas');
-RANCH_CV.width = 60; RANCH_CV.height = 64;
-(function (){
-  var c = RANCH_CV.getContext('2d');
-  c.fillStyle = '#2d2016';
-  c.fillRect(6, 34, 46, 26);
-  c.beginPath();
-  c.moveTo(2, 34); c.lineTo(29, 18); c.lineTo(56, 34);
-  c.closePath(); c.fill();
-  c.fillStyle = 'rgba(255,200,110,.7)';
-  c.fillRect(14, 42, 8, 8);
-  c.fillRect(36, 42, 8, 8);
-  c.fillRect(42, 2, 4, 16);
-})();
-
-/* Camadas de morro pré-renderizadas (re-geradas só quando a câmera anda) */
-var HILL_LAYERS = [];
-var HILL_REBUILD = 16;
-
-/* =========================================================
-   GERADOR DE FASES (determinístico)
-   ========================================================= */
-function buildLevel(i){
-  var rnd = mulberry32(4242 + i * 97);
-  var diff = i / 9;
-  var plats = [{ x:0, y:GROUND_Y, w:420 }];
-  var x = 420, y = GROUND_Y;
-  var target = 2300 + i * 180;
-
-  while (x < target){
-    x += 55 + rnd() * (35 + diff * 50);
-    var ny = rnd() < 0.4 ? GROUND_Y : 250 + rnd() * 110;
-    ny = Math.max(ny, y - 80);
-    var w = 110 + rnd() * (180 - diff * 50);
-    plats.push({ x:x, y:ny, w:w });
-    x += w; y = ny;
-  }
-  x += 55 + rnd() * 35;
-  plats.push({ x:x, y:GROUND_Y, w:260 });
-  var goalX = x + 200;
-
-  for (var k = 0; k < plats.length; k++){
-    plats[k].h = plats[k].y >= GROUND_Y ? 80 : 22;
-  }
-
-  var hazards = [], coins = [], cps = [];
-  for (var j = 1; j < plats.length; j++){
-    var pl = plats[j];
-    if (j % 4 === 2) cps.push({ at:pl.x + 10, sx:pl.x + 20, sy:pl.y - PH, reached:false });
-    if (pl.w >= 180 && rnd() < 0.15 + diff * 0.2){
-      hazards.push({ x:pl.x + 90 + rnd() * (pl.w - 140), y:pl.y - 12, w:26, h:12 });
-    }
-    if (rnd() < 0.5) coins.push({ x:pl.x + pl.w / 2, y:pl.y - 50, taken:false });
-  }
-  return { plats:plats, hazards:hazards, coins:coins, cps:cps, goalX:goalX, len:goalX + 200 };
-}
-
-/* =========================================================
-   ESTADO
-   ========================================================= */
-var state = 'menu';
-var levelIdx = 0, lives = LIVES_MAX, score = 0, correctCount = 0;
-var answered = false, quizReadyAt = 0;
-var level = null, p = null, cam = 0;
-var t = 0, banner = 0, bannerText = '', flash = 0;
-var particles = [];
-var dust = [];
-
-var CW = 0, CH = 0, SCALE = 1, OFFY = 0, VW = 800;
-/* Botões de toque escalam sozinhos com o lado menor da tela (64–150px) */
-function layoutTouch(){
-  var m = Math.min(window.innerWidth, window.innerHeight);
-  var ts = Math.round(Math.max(56, Math.min(150, m * 0.2)));
-  var st = $('touch').style;
-  st.setProperty('--ts', ts + 'px');
-  st.setProperty('--tss', Math.round(ts * 0.8) + 'px');
-}
-function resize(){
-  var dpr = Math.min(window.devicePixelRatio || 1, Q().dpr);
-  CW = Math.round(window.innerWidth * dpr);
-  CH = Math.round(window.innerHeight * dpr);
-  canvas.width = CW;
-  canvas.height = CH;
-  SCALE = Math.min(CH / H, CW / MIN_VW);
-  VW = CW / SCALE;
-  OFFY = (CH - H * SCALE) / 2;
-  buildVignette();
-  layoutTouch();
-}
-
-var inp = { left:false, right:false, jump:false };
-var KEYMAP = {
-  ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right',
-  Space:'jump', ArrowUp:'jump', KeyW:'jump', KeyQ:'dash'
+/* ---------- estado ---------- */
+var st = {
+  peer: null,          // objeto PeerJS local
+  meuId: '',           // meu peer id
+  isHost: false,
+  sala: '',
+  nome: '',
+  conns: [],           // (host) conexões de dados dos participantes
+  hostConn: null,      // (cliente) conexão com o host
+  roster: {},          // pid -> nome
+  emVoz: false,
+  mudo: false,
+  meuStream: null,
+  calls: {},           // pid -> MediaConnection (voz)
+  audios: {}           // pid -> elemento <audio>
 };
 
-function makePlayer(x, y){
-  return { x:x, y:y, vx:0, vy:0, onGround:false, coyote:0, jumpBuf:0, airJumps:1,
-           facing:1, invuln:0, dashT:0, dashCd:0, cut:true, cp:{ x:x, y:y } };
+/* ---------- utilitários ---------- */
+function gerarCodigo(){
+  var chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  var s = '';
+  for (var i = 0; i < 5; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
+  return s;
 }
+function horaAgora(){
+  var d = new Date();
+  return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+}
+function erro(msg){ $('avisoErro').textContent = msg; }
+function scrollToFim(){ var m = $('mensagens'); m.scrollTop = m.scrollHeight; }
 
-function burst(x, y, color, n){
-  var count = Math.max(1, Math.round(n * (quality === 'low' ? 0.5 : 1)));
-  for (var i = 0; i < count && particles.length < 120; i++){
-    particles.push({ x:x, y:y, vx:(Math.random() - 0.5) * 5, vy:(Math.random() - 0.9) * 5,
-                     life:28 + Math.random() * 20, color:color });
+/* ---------- mensagens na tela ---------- */
+function bolhaSistema(texto){
+  var l = document.createElement('div'); l.className = 'linha';
+  var b = document.createElement('div'); b.className = 'bolha sistema';
+  var t = document.createElement('div'); t.className = 'texto'; t.textContent = texto;
+  b.appendChild(t); l.appendChild(b); $('mensagens').appendChild(l); scrollToFim();
+}
+function bolhaMsg(quem, texto, minha){
+  var l = document.createElement('div'); l.className = 'linha' + (minha ? ' eu' : '');
+  var b = document.createElement('div'); b.className = 'bolha';
+  if (!minha && quem){
+    var q = document.createElement('div'); q.className = 'quem'; q.textContent = quem; b.appendChild(q);
   }
+  var t = document.createElement('div'); t.className = 'texto'; t.textContent = texto;
+  var h = document.createElement('div'); h.className = 'hora'; h.textContent = horaAgora();
+  b.appendChild(t); b.appendChild(h); l.appendChild(b); $('mensagens').appendChild(l); scrollToFim();
 }
-function updateParticles(){
-  for (var i = particles.length - 1; i >= 0; i--){
-    var q = particles[i];
-    q.x += q.vx; q.y += q.vy; q.vy += 0.2; q.life--;
-    if (q.life <= 0) particles.splice(i, 1);
-  }
-}
-function toast(msg){ bannerText = msg; banner = 110; }
-
-function showOnly(id){
-  var overlays = document.querySelectorAll('.overlay');
-  for (var i = 0; i < overlays.length; i++) overlays[i].classList.add('hidden');
-  if (id) $(id).classList.remove('hidden');
-  $('touch').style.display = id ? 'none' : '';
-}
-
-function loadLevel(i){
-  levelIdx = i;
-  level = buildLevel(i);
-  p = makePlayer(60, GROUND_Y - PH);
-  cam = 0;
-  particles = [];
-  bannerText = 'Fase ' + (i + 1) + ': ' + LEVELS[i];
-  banner = 170;
-}
-
-function tryFullscreen(){
-  var el = document.documentElement;
-  try {
-    if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen();
-  } catch (err) {}
-}
-function toggleFullscreen(){
-  try {
-    if (!document.fullscreenElement){ tryFullscreen(); }
-    else if (document.exitFullscreen){ document.exitFullscreen(); }
-  } catch (err) {}
-}
-
-function startGame(){
-  lives = LIVES_MAX; score = 0; correctCount = 0;
-  loadLevel(0);
-  state = 'playing';
-  resetInputs();
-  showOnly(null);
-}
-
-function gameOver(){
-  state = 'gameover';
-  resetInputs();
-  $('goScore').textContent = score;
-  showOnly('gameover');
-}
-
-function showWin(){
-  state = 'win';
-  resetInputs();
-  var perfect = correctCount === QUIZ.length;
-  $('winScore').textContent = score;
-  $('winCorrect').textContent = correctCount;
-  $('winPrize').textContent = perfect
-    ? 'Você acertou tudo e ganhou 1 pirulito de verdade!'
-    : 'Não foi dessa vez. Para ganhar o pirulito, acerte todas as 10 perguntas.';
-  showOnly('win');
-}
-
-/* Código secreto: zera o jogo com todas as respostas certas */
-function cheatWin(){
-  if (state === 'win') return;
-  correctCount = QUIZ.length;
-  score += 5000;
-  levelIdx = LEVELS.length - 1;
-  showWin();
-}
-
-function pauseGame(){
-  if (state !== 'playing') return;
-  state = 'paused';
-  resetInputs();
-  showOnly('pause');
-}
-function resumeGame(){
-  if (state !== 'paused') return;
-  state = 'playing';
-  resetInputs();
-  showOnly(null);
-}
-
-function hurt(){
-  lives--;
-  flash = 22;
-  burst(p.x + PW / 2, p.y + PH / 2, '#b8432f', 18);
-  if (lives <= 0){ gameOver(); return; }
-  p.x = p.cp.x; p.y = p.cp.y;
-  p.vx = 0; p.vy = 0; p.invuln = 120; p.dashT = 0;
-  toast('Você perdeu uma vida · restam ' + lives);
-}
-
-function startDash(){
-  if (!p || p.dashCd > 0 || p.dashT > 0) return;
-  p.dashT = DASH_FRAMES;
-  p.dashCd = DASH_COOLDOWN;
-  burst(p.x + PW / 2, p.y + PH / 2, '#f4ead5', 6);
+function atualizarStatus(){
+  var n = 1 + Object.keys(st.roster).length;
+  var voz = 0;
+  for (var pid in st.roster) if (st.roster[pid].emVoz) voz++;
+  if (st.emVoz) voz++;
+  $('lblStatus').textContent = (st.isHost ? 'host · ' : '') + 'online · ' + n +
+    (n === 1 ? ' pessoa' : ' pessoas') + (voz ? ' · ' + voz + ' na voz' : '');
 }
 
 /* =========================================================
-   QUIZ
+   ENVIO / RETRANSMISSÃO
    ========================================================= */
-function finishLevel(){
-  state = 'quiz';
-  answered = false;
-  quizReadyAt = Date.now() + QUIZ_DELAY;
-  resetInputs();
-  var q = QUIZ[levelIdx];
-  $('qTitle').textContent = 'Fim da fase ' + (levelIdx + 1) + ': ' + LEVELS[levelIdx];
-  $('qText').textContent = q.q;
-  var box = $('qOpts');
-  box.innerHTML = '';
-  for (var i = 0; i < q.o.length; i++){
-    (function (idx){
-      var b = document.createElement('button');
-      b.className = 'opt';
-      b.textContent = 'ABCD'.charAt(idx) + ') ' + q.o[idx];
-      b.onclick = function (){ answer(idx); };
-      box.appendChild(b);
-    })(i);
+function enviarTodos(dado, excetoConn){
+  var s = JSON.stringify(dado);
+  if (st.isHost){
+    for (var i = 0; i < st.conns.length; i++)
+      if (st.conns[i] !== excetoConn && st.conns[i].open) st.conns[i].send(s);
+  } else if (st.hostConn && st.hostConn.open){
+    st.hostConn.send(s);
   }
-  $('qFeedback').classList.add('hidden');
-  $('qFeedback').innerHTML = '';
-  $('qNext').classList.add('hidden');
-  showOnly('quiz');
 }
-
-function answer(i){
-  if (state !== 'quiz' || answered) return;
-  if (Date.now() < quizReadyAt) return;
-  answered = true;
-  var q = QUIZ[levelIdx];
-  var btns = $('qOpts').getElementsByTagName('button');
-  for (var k = 0; k < btns.length; k++) btns[k].disabled = true;
-  btns[q.a].classList.add('correct');
-
-  var msg;
-  if (i === q.a){
-    correctCount++;
-    score += 500;
-    msg = 'Correto! Você já acertou ' + correctCount + ' de ' + (levelIdx + 1) + ' perguntas.';
-  } else {
-    btns[i].classList.add('wrong');
-    msg = 'Resposta incorreta. A certa era a alternativa ' + 'ABCD'.charAt(q.a) + '. Para ganhar o pirulito, precisa acertar todas.';
-  }
-  $('qFeedback').innerHTML = '<strong>' + msg + '</strong><br>' + q.e;
-  $('qFeedback').classList.remove('hidden');
-  $('qNext').textContent = levelIdx === LEVELS.length - 1 ? 'Ver resultado final' : 'Próximo nível';
-  $('qNext').classList.remove('hidden');
-}
-
-function nextLevel(){
-  if (state !== 'quiz' || !answered) return;
-  var next = levelIdx + 1;
-  if (next >= LEVELS.length){ showWin(); return; }
-  loadLevel(next);
-  state = 'playing';
-  resetInputs();
-  showOnly(null);
-}
+function enviar(dado){ if (st.isHost) enviarTodos(dado, null); else enviarTodos(dado); }
 
 /* =========================================================
-   ATUALIZAÇÃO (física e regras, passo fixo)
+   ENTRADA NA SALA
    ========================================================= */
-function update(){
-  if (p.invuln > 0) p.invuln--;
-  if (p.dashCd > 0) p.dashCd--;
+function limparPeer(){
+  try { if (st.peer) st.peer.destroy(); } catch (e) {}
+  st.peer = null;
+}
+function abrirSala(codigo, anfitriao){
+  st.sala = codigo;
+  st.isHost = anfitriao;
+  $('lblSala').textContent = codigo;
+  $('telaEntrada').classList.add('hidden');
+  $('sala').classList.remove('hidden');
+  bolhaSistema(anfitriao
+    ? 'Sala criada! Código: ' + codigo + ' — mande para quem quiser conversar.'
+    : 'Você entrou na sala ' + codigo + '.');
+  atualizarStatus();
+  localStorage.setItem('zapzap_nome', st.nome);
+}
+function iniciarVozSePronto(){
+  if (st.emVoz && st.meuStream) chamarTodosEmVoz();
+}
 
-  if (p.dashT === 0){
-    if (inp.right) p.facing = 1;
-    else if (inp.left) p.facing = -1;
-    p.vx = (inp.right ? SPEED : 0) - (inp.left ? SPEED : 0);
-  } else {
-    p.dashT--;
-    p.vx = p.facing * DASH_V;
-  }
-
-  if (p.onGround) p.airJumps = 1;
-  p.coyote = p.onGround ? 6 : Math.max(0, p.coyote - 1);
-  if (p.jumpBuf > 0){
-    if (p.coyote > 0){
-      p.vy = JUMP; p.coyote = 0; p.onGround = false; p.jumpBuf = 0;
-      p.cut = inp.jump; // corte de pulo só se o botão ainda está apertado no lançamento
-    } else if (p.airJumps > 0){
-      p.vy = JUMP * 0.85; p.airJumps--; p.jumpBuf = 0;
-      p.cut = inp.jump;
-      burst(p.x + PW / 2, p.y + PH, '#f4ead5', 8);
+/* HOST: fica com o ID fixo da sala */
+function tentarAnfitriao(codigo){
+  erro('');
+  var p = new Peer(PREFIXO + codigo);
+  st.peer = p;
+  p.on('open', function (id){
+    st.meuId = id;
+    st.roster = {};
+    abrirSala(codigo, true);
+    atualizarStatus();
+  });
+  p.on('connection', function (conn){ prepararConnHost(conn); });
+  p.on('call', function (call){ atenderVoz(call); });
+  p.on('error', function (err){
+    if (err && err.type === 'unavailable-id'){
+      /* código já em uso → entra como participante */
+      limparPeer();
+      entrarComoCliente(codigo);
     } else {
-      p.jumpBuf--;
+      mostrarErroRede(err);
     }
-  }
-  if (!inp.jump && p.cut && p.vy < JUMP_CUT) p.vy = JUMP_CUT;
-  p.vy = Math.min(p.vy + G, MAX_FALL);
+  });
+  p.on('disconnected', function (){ try { p.reconnect(); } catch (e) {} });
+}
 
-  p.x += p.vx;
-  if (p.x < 0) p.x = 0;
-  for (var i = 0; i < level.plats.length; i++){
-    var pl = level.plats[i];
-    if (overlap(p.x, p.y, PW, PH, pl.x, pl.y, pl.w, pl.h)){
-      if (p.vx > 0) p.x = pl.x - PW;
-      else if (p.vx < 0) p.x = pl.x + pl.w;
+/* CLIENTE: entra na sala de alguém */
+function entrarComoCliente(codigo){
+  var p = new Peer();
+  st.peer = p;
+  p.on('open', function (id){
+    st.meuId = id;
+    var conn = p.connect(PREFIXO + codigo, { reliable: true });
+    st.hostConn = conn;
+    conn.on('open', function (){
+      abrirSala(codigo, false);
+      enviar({ tipo: 'hello', nome: st.nome, pid: st.meuId });
+    });
+    conn.on('data', receberDados);
+    conn.on('close', function (){
+      if ($('sala').classList.contains('hidden')) return;
+      desligarVozLocal();
+      st.roster = {};
+      bolhaSistema('A sala foi encerrada pelo anfitrião.');
+      $('lblStatus').textContent = 'sala encerrada';
+    });
+    p.on('call', function (call){ atenderVoz(call); });
+  });
+  p.on('error', function (err){
+    if (err && err.type === 'peer-unavailable') erro('Sala ' + codigo + ' não encontrada. Confira o código.');
+    else mostrarErroRede(err);
+  });
+  p.on('disconnected', function (){ try { p.reconnect(); } catch (e) {} });
+}
+
+function mostrarErroRede(err){
+  console.error('peer error', err && err.type, err);
+  var map = { network: 'Sem conexão com a internet.', server: 'Servidor de sinal fora do ar. Tente de novo.', browser: 'Seu navegador não suporta WebRTC.' };
+  if ($('sala').classList.contains('hidden')) erro((map[err && err.type]) || 'Erro de conexão. Tente de novo.');
+  else $('lblStatus').textContent = 'sem conexão…';
+}
+
+/* HOST: recebe conexão de um participante */
+function prepararConnHost(conn){
+  st.conns.push(conn);
+  conn.on('data', function (bruto){
+    var d;
+    try { d = JSON.parse(bruto); } catch (e) { return; }
+    if (d.tipo === 'hello'){
+      conn.pidParticipante = d.pid;
+      st.roster[d.pid] = { nome: d.nome, emVoz: false };
+      bolhaSistema(d.nome + ' entrou na sala.');
+      difundirRoster();
+      enviarTodos(d, conn);
+      iniciarVozSePronto(); /* host em voz chama o novo */
+    } else if (d.tipo === 'msg'){
+      bolhaMsg(d.nome, d.texto, false);
+      enviarTodos(d, conn);
+    } else if (d.tipo === 'voz-on'){
+      if (st.roster[d.pid]) st.roster[d.pid].emVoz = true;
+      bolhaSistema((st.roster[d.pid] || { nome: 'Alguém' }).nome + ' entrou na voz.');
+      difundirRoster();
+      enviarTodos(d, conn);
+      iniciarVozSePronto();
+    } else if (d.tipo === 'voz-off'){
+      if (st.roster[d.pid]){
+        bolhaSistema(st.roster[d.pid].nome + ' saiu da voz.');
+        st.roster[d.pid].emVoz = false;
+      }
+      difundirRoster();
+      enviarTodos(d, conn);
+      encerrarVozCom(d.pid);
+    } else {
+      enviarTodos(d, conn); /* retransmite o resto */
     }
-  }
-
-  p.y += p.vy;
-  p.onGround = false;
-  for (i = 0; i < level.plats.length; i++){
-    var pf = level.plats[i];
-    if (!overlap(p.x, p.y, PW, PH, pf.x, pf.y, pf.w, pf.h)) continue;
-    if (p.vy >= 0){ p.y = pf.y - PH; p.onGround = true; }
-    else { p.y = pf.y + pf.h; }
-    p.vy = 0;
-  }
-
-  if (p.invuln === 0){
-    var pr = { x:p.x + 5, y:p.y + 6, w:PW - 10, h:PH - 6 };
-    for (i = 0; i < level.hazards.length; i++){
-      var hz = level.hazards[i];
-      if (overlap(pr.x, pr.y, pr.w, pr.h, hz.x, hz.y, hz.w, hz.h)){ hurt(); return; }
+  });
+  conn.on('close', function (){
+    var i = st.conns.indexOf(conn);
+    if (i >= 0) st.conns.splice(i, 1);
+    var pid = conn.pidParticipante;
+    if (pid && st.roster[pid]){
+      bolhaSistema(st.roster[pid].nome + ' saiu da sala.');
+      if (st.roster[pid].emVoz) encerrarVozCom(pid);
+      delete st.roster[pid];
+      difundirRoster();
     }
-  }
+    atualizarStatus();
+  });
+}
 
-  for (i = 0; i < level.coins.length; i++){
-    var c = level.coins[i];
-    if (!c.taken && Math.abs(c.x - (p.x + PW / 2)) < 20 && Math.abs(c.y - (p.y + PH / 2)) < 24){
-      c.taken = true;
-      score += 10;
-      burst(c.x, c.y, '#ffd54a', 8);
+/* HOST: avisa a lista de presença para todos */
+function difundirRoster(){
+  var lista = [];
+  if (st.isHost) lista.push({ pid: st.meuId, nome: st.nome + ' (anfitrião)', emVoz: st.emVoz });
+  for (var pid in st.roster) lista.push({ pid: pid, nome: st.roster[pid].nome });
+  enviar({ tipo: 'roster', lista: lista });
+  atualizarStatus();
+}
+
+/* CLIENTE + HOST: processa dados recebidos */
+function receberDados(bruto){
+  var d;
+  try { d = JSON.parse(bruto); } catch (e) { return; }
+  if (d.tipo === 'msg'){
+    bolhaMsg(d.nome, d.texto, false);
+  } else if (d.tipo === 'roster'){
+    st.roster = {};
+    for (var i = 0; i < d.lista.length; i++){
+      if (d.lista[i].pid !== st.meuId) st.roster[d.lista[i].pid] = { nome: d.lista[i].nome, emVoz: !!d.lista[i].emVoz };
     }
+    atualizarStatus();
+    iniciarVozSePronto();
+  } else if (d.tipo === 'hello'){
+    if (!st.roster[d.pid]) st.roster[d.pid] = { nome: d.nome, emVoz: false };
+    atualizarStatus();
+    bolhaSistema(d.nome + ' entrou na sala.');
+    iniciarVozSePronto();
+  } else if (d.tipo === 'voz-on'){
+    if (!st.roster[d.pid]) st.roster[d.pid] = { nome: d.nome, emVoz: false };
+    st.roster[d.pid].emVoz = true;
+    atualizarStatus();
+    bolhaSistema(d.nome + ' entrou na voz.');
+    iniciarVozSePronto();
+  } else if (d.tipo === 'voz-off'){
+    if (st.roster[d.pid]) st.roster[d.pid].emVoz = false;
+    atualizarStatus();
+    bolhaSistema(d.nome + ' saiu da voz.');
+    encerrarVozCom(d.pid);
+  } else if (d.tipo === 'saiu'){
+    if (st.roster[d.pid]) delete st.roster[d.pid];
+    atualizarStatus();
+    bolhaSistema(d.nome + ' saiu da sala.');
   }
-
-  for (i = 0; i < level.cps.length; i++){
-    var cp = level.cps[i];
-    if (!cp.reached && p.onGround && p.x >= cp.at){
-      cp.reached = true;
-      p.cp = { x:cp.sx, y:cp.sy };
-      toast('Checkpoint!');
-      burst(cp.sx + PW / 2, cp.sy + PH / 2, '#3f7d3a', 14);
-    }
-  }
-
-  if (p.y > H + 60){ hurt(); return; }
-  if (p.x + PW >= level.goalX){ finishLevel(); return; }
-
-  cam = Math.max(0, Math.min(level.len - VW, p.x - VW * 0.4));
 }
 
 /* =========================================================
-   DESENHO
+   VOZ (malha completa: quem está na voz chama quem entra)
    ========================================================= */
-var CLOUDS = [];
-for (var ci = 0; ci < 9; ci++){
-  CLOUDS.push({ x: ci * 160 + (ci % 2) * 30, y: 60 + (ci * 37) % 90, s: 0.9 + (ci % 3) * 0.2 });
-}
-var STARS = [];
-for (var si = 0; si < 70; si++){
-  STARS.push({ x: hash(si * 3.1) * 1600, y: hash(si * 7.7) * 170, r: 0.5 + hash(si * 1.9) * 1.2, ph: hash(si * 5.3) * Math.PI * 2 });
-}
-for (var di = 0; di < 40; di++){
-  dust.push({ x: hash(di * 2.3) * 1200, y: 150 + hash(di * 4.1) * 280, s: 0.4 + hash(di) * 1.2 });
-}
-
-function hillLayer(par, colorTop, colorBot, base, amp, seed){
-  var st = null;
-  for (var i = 0; i < HILL_LAYERS.length; i++){
-    if (HILL_LAYERS[i].par === par){ st = HILL_LAYERS[i]; break; }
+function chamarTodosEmVoz(){
+  if (!st.emVoz || !st.meuStream) return;
+  for (var pid in st.roster){
+    if (!st.roster[pid].emVoz || st.calls[pid] || pid === st.meuId) continue;
+    /* só quem tem o id "menor" liga: evita os dois ligarem um para o outro ao mesmo tempo */
+    if (st.meuId < pid) chamar(pid);
   }
-  var top = Math.round(base - amp * 1.5 - 10);
-  var h = (H + 60) - top;
-  var wantW = Math.ceil(VW + 80);
-  if (!st){
-    var cv = document.createElement('canvas');
-    cv.width = wantW; cv.height = h;
-    var bx = cv.getContext('2d');
-    var g = bx.createLinearGradient(0, base - amp - top, 0, h);
-    g.addColorStop(0, colorTop);
-    g.addColorStop(1, colorBot);
-    st = { par: par, cv: cv, g: g, r0: -1e9, top: top, h: h };
-    HILL_LAYERS.push(st);
-  }
-  var off = cam * par;
-  if (Math.abs(off - st.r0) > HILL_REBUILD || st.cv.width !== wantW){
-    var cx = st.cv.getContext('2d');
-    if (st.cv.width !== wantW) st.cv.width = wantW;
-    st.r0 = off;
-    cx.clearRect(0, 0, st.cv.width, h);
-    cx.fillStyle = st.g;
-    cx.beginPath();
-    cx.moveTo(0, h);
-    for (var x = 0; x <= st.cv.width; x += 12){
-      var wx = x - 40 + off;
-      var y = base + Math.sin(wx * 0.008 + seed) * amp + Math.sin(wx * 0.021 + seed * 1.7) * amp * 0.4;
-      cx.lineTo(x, y - top);
+}
+function chamar(pid){
+  if (!st.meuStream || st.calls[pid]) return;
+  var call = st.peer.call(pid, st.meuStream);
+  registrarCall(pid, call);
+}
+function atenderVoz(call){
+  registrarCall(call.peer, call);
+  call.answer(st.meuStream); /* sem stream = ouvir apenas */
+}
+function registrarCall(pid, call){
+  st.calls[pid] = call;
+  call.on('stream', function (remoto){
+    if (!st.audios[pid]){
+      var a = document.createElement('audio');
+      a.autoplay = true;
+      a.srcObject = remoto;
+      document.body.appendChild(a);
+      st.audios[pid] = a;
+      var play = a.play && a.play();
+      if (play && play.catch) play.catch(function (){ /* autoplay bloqueado: usuário precisa tocar */ });
     }
-    cx.lineTo(st.cv.width, h);
-    cx.closePath();
-    cx.fill();
-  }
-  ctx.drawImage(st.cv, -(off - st.r0) - 40, top);
+  });
+  call.on('close', function (){ encerrarVozCom(pid); });
 }
-
-function trees(par, by, dark){
-  var step = 170;
-  var first = Math.floor((cam * par) / step) - 1;
-  var n = Math.ceil(VW / step) + 3;
-  var spr = dark ? TREE_DARK : TREE_LIGHT;
-  for (var k = first; k < first + n; k++){
-    var h = 0.6 + hash(k) * 0.5;
-    var sx = k * step - cam * par + hash(k + 9) * 30;
-    ctx.drawImage(spr, sx - 20 * h, by - 62 * h, 40 * h, 64 * h);
-  }
+function encerrarVozCom(pid){
+  var call = st.calls[pid];
+  if (call){ try { call.close(); } catch (e) {} delete st.calls[pid]; }
+  if (st.audios[pid]){ try { st.audios[pid].srcObject = null; st.audios[pid].remove(); } catch (e) {} delete st.audios[pid]; }
 }
-
-function ranch(par, by){
-  var step = 620;
-  var first = Math.floor((cam * par) / step) - 1;
-  for (var k = first; k < first + Math.ceil(VW / step) + 3; k++){
-    var sx = k * step + 180 - cam * par;
-    ctx.drawImage(RANCH_CV, sx - 6, by - 60);
+function desligarVozLocal(){
+  st.emVoz = false; st.mudo = false;
+  $('btnVoz').textContent = '🎙 Entrar na voz';
+  $('btnMudo').classList.add('hidden');
+  $('btnMudo').textContent = '🔇';
+  for (var pid in st.calls) encerrarVozCom(pid);
+  if (st.meuStream){
+    var trs = st.meuStream.getTracks();
+    for (var i = 0; i < trs.length; i++) try { trs[i].stop(); } catch (e) {}
+    st.meuStream = null;
   }
 }
-
-function drawSky(){
-  ctx.fillStyle = getGrad('sky', 0, 0, 0, H, [0, '#152a47', 0.3, '#2f5778', 0.58, '#d9785a', 0.8, '#f0a866', 1, '#f8cf86']);
-  ctx.fillRect(-4, -4, VW + 8, H + 8);
-
-  var nStars = Q().stars;
-  for (var i = 0; i < nStars; i++){
-    var s = STARS[i];
-    var tw = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 0.05 + s.ph));
-    var x = ((s.x - cam * 0.02) % 1600 + 1600) % 1600 - 100;
-    ctx.fillStyle = 'rgba(255,250,235,' + (0.8 * tw) + ')';
-    ctx.beginPath(); ctx.arc(x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
-  }
-
-  var sx = VW * 0.72 - cam * 0.02, sy = 120;
-  ctx.drawImage(SUN_CV, sx - 190, sy - 190);
-  ctx.fillStyle = '#fff6dc';
-  ctx.beginPath(); ctx.arc(sx, sy, 36, 0, Math.PI * 2); ctx.fill();
-
-  var span = 1440;
-  var nClouds = Q().clouds;
-  for (var ci2 = 0; ci2 < nClouds; ci2++){
-    var c = CLOUDS[ci2];
-    var cx = ((c.x - cam * 0.08) % span + span) % span - 150;
-    var spr = CLOUD_CV[ci2 % 3];
-    ctx.drawImage(spr, cx - 24 * c.s, c.y - 34 * c.s, 96 * c.s, 64 * c.s);
-  }
-
-  hillLayer(0.08, '#6b6f94', '#4a5070', 265, 22, 1.3);
-  hillLayer(0.15, '#8c6a8f', '#5e4a6b', 300, 36, 0.5);
-  ranch(0.2, 330);
-  hillLayer(0.3, '#6f8a52', '#4d6a3a', 340, 28, 2.1);
-  trees(0.3, 352, true);
-  hillLayer(0.55, '#5a7d42', '#3b5a2c', 380, 16, 4.0);
-  trees(0.55, 392, false);
+function sairDaVoz(){
+  desligarVozLocal();
+  enviar({ tipo: 'voz-off', nome: st.nome, pid: st.meuId });
+  if (st.isHost) difundirRoster();
+  bolhaSistema('Você saiu da voz.');
 }
-
-function drawGround(pl){
-  var g = pl.grad;
-  if (!g){
-    g = pl.grad = ctx.createLinearGradient(0, pl.y, 0, pl.y + pl.h);
-    g.addColorStop(0, '#7a5232');
-    g.addColorStop(1, '#3f2615');
-  }
-  ctx.fillStyle = g;
-  ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
-
-  ctx.fillStyle = '#5c9a3a';
-  ctx.fillRect(pl.x, pl.y, pl.w, 8);
-
-  var gStep = Q().grass;
-  for (var gx = pl.x + 4; gx < pl.x + pl.w; gx += gStep){
-    var h = 3 + hash(gx) * 6;
-    var sway = Math.sin(t * 0.06 + gx * 0.2) * 1.6;
-    ctx.fillStyle = hash(gx + 3) > 0.5 ? '#4a8230' : '#5f9a3c';
-    ctx.beginPath();
-    ctx.moveTo(gx, pl.y + 1);
-    ctx.quadraticCurveTo(gx + sway * 0.4, pl.y - h * 0.5, gx + sway, pl.y - h);
-    ctx.quadraticCurveTo(gx + 2 + sway * 0.4, pl.y - h * 0.5, gx + 3, pl.y + 1);
-    ctx.fill();
-  }
-
-  ctx.fillStyle = 'rgba(0,0,0,.25)';
-  for (var px = pl.x + 10; px < pl.x + pl.w; px += 23){
-    ctx.beginPath();
-    ctx.arc(px + hash(px) * 8, pl.y + 30 + hash(px + 1) * 40, 2 + hash(px + 2) * 2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function drawPlank(pl){
-  ctx.fillStyle = '#3a2615';
-  ctx.fillRect(pl.x + 6, pl.y + pl.h, 6, 14);
-  ctx.fillRect(pl.x + pl.w - 12, pl.y + pl.h, 6, 14);
-
-  var g = pl.gradP;
-  if (!g){
-    g = pl.gradP = ctx.createLinearGradient(0, pl.y, 0, pl.y + pl.h);
-    g.addColorStop(0, '#b68652');
-    g.addColorStop(1, '#6b4527');
-  }
-  ctx.fillStyle = g;
-  ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
-
-  ctx.fillStyle = 'rgba(60,35,15,.3)';
-  for (var gx = pl.x + 18; gx < pl.x + pl.w; gx += 34){
-    ctx.fillRect(gx, pl.y + 4, 2, pl.h - 8);
-  }
-  ctx.fillStyle = '#5b8f3a';
-  ctx.fillRect(pl.x, pl.y, pl.w, 4);
-}
-
-function drawPlatforms(){
-  for (var i = 0; i < level.plats.length; i++){
-    var pl = level.plats[i];
-    if (pl.x + pl.w < cam - 40 || pl.x > cam + VW + 40) continue;
-    if (pl.y >= GROUND_Y) drawGround(pl); else drawPlank(pl);
-  }
-}
-
-function drawHazards(){
-  ctx.fillStyle = '#d9dee4';
-  for (var i = 0; i < level.hazards.length; i++){
-    var hz = level.hazards[i];
-    if (hz.x < cam - 40 || hz.x > cam + VW + 40) continue;
-    var n = Math.max(2, Math.round(hz.w / 9));
-    for (var k = 0; k < n; k++){
-      var x0 = hz.x + k * (hz.w / n), w = hz.w / n;
-      ctx.beginPath();
-      ctx.moveTo(x0, hz.y + hz.h);
-      ctx.lineTo(x0 + w / 2, hz.y);
-      ctx.lineTo(x0 + w, hz.y + hz.h);
-      ctx.closePath(); ctx.fill();
-    }
-  }
-}
-
-function drawCheckpoints(){
-  for (var i = 0; i < level.cps.length; i++){
-    var cp = level.cps[i];
-    if (cp.sx < cam - 60 || cp.sx > cam + VW + 60) continue;
-    var x = cp.sx + PW + 8, base = cp.sy + PH;
-    ctx.fillStyle = '#e4e4e4';
-    ctx.fillRect(x, base - 40, 3, 40);
-    ctx.fillStyle = cp.reached ? '#3f7d3a' : '#9a8a70';
-    ctx.beginPath();
-    ctx.moveTo(x + 3, base - 40);
-    ctx.lineTo(x + 18, base - 34);
-    ctx.lineTo(x + 3, base - 28);
-    ctx.closePath(); ctx.fill();
-  }
-}
-
-function drawCoins(){
-  for (var i = 0; i < level.coins.length; i++){
-    var c = level.coins[i];
-    if (c.taken) continue;
-    var y = c.y + Math.sin(t * 0.1 + c.x) * 2.5;
-    ctx.fillStyle = '#ffd54a';
-    ctx.beginPath(); ctx.arc(c.x, y, 7, 0, Math.PI * 2); ctx.fill();
-  }
-}
-
-function drawGoal(){
-  var gx = level.goalX;
-  ctx.fillStyle = '#e8e8e8';
-  ctx.fillRect(gx, 240, 5, 160);
-  for (var i = 0; i < 6; i++){
-    var x0 = gx + 5 + i * 8;
-    var y0 = 246 + Math.sin(t * 0.12 + i * 0.7) * 3 * (0.3 + i / 6);
-    ctx.fillStyle = '#b8432f';
-    ctx.fillRect(x0, y0, 8, 13);
-    ctx.fillStyle = '#3f7d3a';
-    ctx.fillRect(x0, y0 + 13, 8, 13);
-  }
-  ctx.fillStyle = '#fff3d6';
-  ctx.font = 'bold 12px Georgia, serif';
-  ctx.textAlign = 'left';
-  ctx.fillText('CHEGADA', gx - 6, 230);
-}
-
-function drawShadow(){
-  if (!p.onGround || !Q().shadow) return;
-  ctx.fillStyle = 'rgba(0,0,0,.25)';
-  ctx.beginPath();
-  ctx.ellipse(p.x + PW / 2, p.y + PH + 1, 13, 3.5, 0, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-/* Desenha o personagem escolhido (origem no topo da cabeça) */
-function drawBody(cx, top, k, air){
-  var c = curChar();
-  ctx.save();
-  ctx.translate(cx + PW / 2, top);
-  ctx.scale(p.facing, 1);
-
-  var l1 = air ? -6 : k * 6, l2 = air ? 6 : -k * 6;
-  ctx.strokeStyle = '#5a3d22';
-  ctx.lineWidth = 5;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(-3, 26); ctx.lineTo(-3 + l1, 36);
-  ctx.moveTo(3, 26);  ctx.lineTo(3 + l2, 36);
-  ctx.stroke();
-  ctx.fillStyle = '#2b1d12';
-  ctx.fillRect(-5 + l1, 35, 8, 5);
-  ctx.fillRect(-1 + l2, 35, 8, 5);
-
-  if (c.dress){
-    ctx.fillStyle = c.poncho[0];
-    ctx.beginPath();
-    ctx.moveTo(-5, 12); ctx.lineTo(5, 12); ctx.lineTo(12, 34); ctx.lineTo(-12, 34);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = c.band;
-    ctx.fillRect(-11, 28, 22, 2);
-  } else {
-    var pg = ctx.createLinearGradient(0, 12, 0, 30);
-    pg.addColorStop(0, c.poncho[0]);
-    pg.addColorStop(1, c.poncho[1]);
-    ctx.fillStyle = pg;
-    ctx.beginPath();
-    ctx.moveTo(-8, 12); ctx.lineTo(8, 12); ctx.lineTo(13, 30); ctx.lineTo(-13, 30);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = c.band;
-    ctx.fillRect(-9, 22, 18, 2);
-  }
-
-  ctx.fillStyle = c.lenco;
-  ctx.beginPath();
-  ctx.moveTo(-5, 10); ctx.lineTo(5, 10); ctx.lineTo(0, 15);
-  ctx.closePath(); ctx.fill();
-
-  ctx.fillStyle = '#d9a77a';
-  ctx.beginPath(); ctx.arc(0, 8, 5.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#1d1208';
-  ctx.fillRect(1.5, 6.5, 1.8, 1.8);
-
-  if (c.dress){
-    ctx.fillStyle = c.hat;
-    ctx.beginPath(); ctx.arc(0, 6, 6.5, Math.PI, 0); ctx.fill();
-    ctx.beginPath(); ctx.arc(-4, 6, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(-6, -1, 3.2, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = c.band;
-    ctx.beginPath(); ctx.arc(-2, 1, 1.6, 0, Math.PI * 2); ctx.fill();
-  } else if (c.hatType === 'cap'){
-    ctx.fillStyle = c.hat;
-    ctx.fillRect(-5, -5, 10, 7);
-    ctx.beginPath(); ctx.ellipse(3, 2, 7, 1.8, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = c.band;
-    ctx.fillRect(-5, 0, 10, 1.5);
-  } else {
-    ctx.fillStyle = c.hat;
-    ctx.beginPath(); ctx.ellipse(0, 3, 11, 3, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillRect(-5, -5, 10, 8);
-    ctx.fillStyle = c.band;
-    ctx.fillRect(-5, 0, 10, 2);
-  }
-
-  ctx.restore();
-}
-
-function drawPlayer(){
-  if (p.invuln > 0 && Math.floor(t / 4) % 2 === 0) return;
-  var k = p.onGround && p.vx !== 0 && p.dashT === 0 ? Math.sin(t * 0.45) : 0;
-  var air = !p.onGround;
-  if (p.dashT > 0){
-    ctx.globalAlpha = 0.22;
-    drawBody(p.x - p.facing * 10, p.y, k, air);
-    drawBody(p.x - p.facing * 20, p.y, k, air);
-    ctx.globalAlpha = 1;
-  }
-  drawBody(p.x, p.y, k, air);
-}
-
-function drawDust(){
-  var n = Q().dust;
-  if (!n) return;
-  ctx.fillStyle = 'rgba(255,230,190,.35)';
-  for (var i = 0; i < n; i++){
-    var d = dust[i];
-    var x = ((d.x - cam * 0.5 + t * 0.2 * d.s) % 1200 + 1200) % 1200 - 100;
-    var y = d.y + Math.sin(t * 0.02 + d.x) * 6;
-    ctx.beginPath(); ctx.arc(x, y, d.s, 0, Math.PI * 2); ctx.fill();
-  }
-}
-
-function drawParticles(){
-  for (var i = 0; i < particles.length; i++){
-    var q = particles[i];
-    ctx.globalAlpha = Math.max(0, q.life / 40);
-    ctx.fillStyle = q.color;
-    ctx.fillRect(q.x, q.y, 4, 4);
-  }
-  ctx.globalAlpha = 1;
-}
-
-function heart(x, y, s){
-  ctx.beginPath();
-  ctx.moveTo(x, y + s * 0.3);
-  ctx.bezierCurveTo(x, y, x - s * 0.5, y, x - s * 0.5, y + s * 0.3);
-  ctx.bezierCurveTo(x - s * 0.5, y + s * 0.6, x, y + s * 0.8, x, y + s);
-  ctx.bezierCurveTo(x, y + s * 0.8, x + s * 0.5, y + s * 0.6, x + s * 0.5, y + s * 0.3);
-  ctx.bezierCurveTo(x + s * 0.5, y, x, y, x, y + s * 0.3);
-  ctx.closePath();
-}
-
-function drawHUD(){
-  if (!level) return;
-  ctx.font = 'bold 15px Georgia, serif';
-  ctx.fillStyle = '#fff3d6';
-  ctx.textAlign = 'left';
-  ctx.fillText('Fase ' + (levelIdx + 1) + '/10 · ' + LEVELS[levelIdx], 14, 24);
-  ctx.textAlign = 'center';
-  ctx.fillText('Pontos: ' + score, VW / 2, 24);
-
-  for (var i = 0; i < LIVES_MAX; i++){
-    ctx.fillStyle = i < lives ? '#ff5b4b' : 'rgba(255,255,255,.25)';
-    heart(26 + i * 24, 34, 16);
-    ctx.fill();
-  }
-
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#fff3d6';
-  ctx.fillText('Acertos: ' + correctCount + '/' + QUIZ.length, 26 + LIVES_MAX * 24 + 14, 48);
-
-  var prog = level ? Math.min(1, p.x / level.goalX) : 0;
-  ctx.fillStyle = 'rgba(0,0,0,.4)';
-  ctx.fillRect(14, H - 14, VW - 28, 6);
-  ctx.fillStyle = '#e8b44a';
-  ctx.fillRect(14, H - 14, (VW - 28) * prog, 6);
-
-  if (banner > 0 && bannerText){
-    ctx.globalAlpha = Math.min(1, banner / 30);
-    ctx.textAlign = 'center';
-    ctx.font = 'bold 26px Georgia, serif';
-    ctx.fillStyle = '#e8b44a';
-    ctx.fillText(bannerText, VW / 2, H * 0.35);
-    ctx.globalAlpha = 1;
-  }
-}
-
-var VIGN = null;
-function buildVignette(){
-  if (!Q().vignette){ VIGN = null; return; }
-  VIGN = document.createElement('canvas');
-  VIGN.width = CW; VIGN.height = CH;
-  var c = VIGN.getContext('2d');
-  var g = c.createRadialGradient(CW / 2, CH / 2, Math.min(CW, CH) * 0.35, CW / 2, CH / 2, Math.max(CW, CH) * 0.75);
-  g.addColorStop(0, 'rgba(0,0,0,0)');
-  g.addColorStop(1, 'rgba(10,5,2,.45)');
-  c.fillStyle = g;
-  c.fillRect(0, 0, CW, CH);
-}
-function drawVignette(){
-  if (!VIGN) return;
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.drawImage(VIGN, 0, 0);
-}
-
-var dashBtn = $('bDash');
-var dashBtnOn = -1;
-function updateDashButton(){
-  var ready = p && p.dashCd === 0 && p.dashT === 0;
-  var st = ready ? 1 : 0;
-  if (st !== dashBtnOn){
-    dashBtnOn = st;
-    dashBtn.style.opacity = ready ? 1 : 0.4;
-  }
-}
-
-function draw(){
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = '#24170d';
-  ctx.fillRect(0, 0, CW, CH);
-
-  ctx.setTransform(SCALE, 0, 0, SCALE, 0, OFFY);
-  drawSky();
-  if (level){
-    ctx.save();
-    ctx.translate(-Math.round(cam), 0);
-    drawPlatforms();
-    drawHazards();
-    drawCheckpoints();
-    drawCoins();
-    drawGoal();
-    if (p){ drawShadow(); drawPlayer(); }
-    drawParticles();
-    ctx.restore();
-    drawDust();
-  }
-  drawHUD();
-  if (flash > 0){
-    ctx.fillStyle = 'rgba(200,30,20,' + (flash / 45) + ')';
-    ctx.fillRect(-4, -4, VW + 8, H + 8);
-  }
-  drawVignette();
-  updateDashButton();
-}
-
-/* =========================================================
-   LOOP PRINCIPAL (requestAnimationFrame + passo fixo)
-   ========================================================= */
-var fpsHist = [], lastAuto = 0;
-function autoQuality(fps, now){
-  fpsHist.push(fps);
-  if (fpsHist.length > 6) fpsHist.shift();
-  if (state !== 'playing' || quality === 'low') return;
-  if (now - lastAuto < 10000 || fpsHist.length < 4) return;
-  for (var i = fpsHist.length - 4; i < fpsHist.length; i++){
-    if (fpsHist[i] >= 40) return;
-  }
-  quality = QORDER[QORDER.indexOf(quality) - 1];
-  lastAuto = now;
-  refreshGfxBtn();
-  resize();
-  toast('Gráficos: ' + Q().label + ' (automático)');
-}
-
-var fpsBox = $('fpsBox');
-var fpsFrames = 0, fpsSince = 0;
-var acc = 0, last = 0, lastDraw = 0;
-
-function frame(now){
-  requestAnimationFrame(frame);
-
-  if (FPS_CAP > 0 && now - lastDraw < 1000 / FPS_CAP - 0.5) return;
-  lastDraw = now;
-
-  if (!fpsSince) fpsSince = now;
-  fpsFrames++;
-  if (now - fpsSince >= 500){
-    var curFps = Math.round(fpsFrames * 1000 / (now - fpsSince));
-    fpsBox.textContent = 'FPS: ' + curFps;
-    fpsFrames = 0;
-    fpsSince = now;
-    autoQuality(curFps, now);
-  }
-
-  if (!last) last = now;
-  acc += Math.min(now - last, 200);
-  last = now;
-  while (acc >= STEP){
-    if (state === 'playing') update();
-    updateParticles();
-    if (flash > 0) flash--;
-    if (banner > 0) banner--;
-    t++;
-    acc -= STEP;
-  }
-  draw();
-}
-
-/* =========================================================
-   ENTRADA
-   ========================================================= */
-var isTouch = /Nintendo|Switch/i.test(navigator.userAgent) ||
-              (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-/* PC com tela de toque NÃO liga os botões; celular e Switch ligam automaticamente */
-function applyTouchMode(){
-  if (isTouch) document.body.classList.add('touch');
-  else document.body.classList.remove('touch');
-}
-applyTouchMode();
-
-function press(a){
-  if (state !== 'playing') return;
-  if (a === 'dash'){ startDash(); return; }
-  if (a === 'jump' && !inp.jump) p.jumpBuf = 8;
-  inp[a] = true;
-}
-function release(a){ inp[a] = false; }
-function resetInputs(){ inp.left = false; inp.right = false; inp.jump = false; if (p) p.jumpBuf = 0; }
-
-window.addEventListener('keydown', function (e){
-  if (e.key && e.key.length === 1){
-    secretBuf = (secretBuf + e.key.toLowerCase()).slice(-SECRET.length);
-    if (secretBuf === SECRET){ secretBuf = ''; cheatWin(); return; }
-  }
-
-  var c = e.code;
-  if (KEYMAP[c] || c === 'Space') { if (e.preventDefault) e.preventDefault(); }
-
-  if (state === 'quiz'){
-    if (e.repeat) return;
-    var map = { Digit1:0, Digit2:1, Digit3:2, Digit4:3 };
-    if (!answered && (c in map)) answer(map[c]);
-    if (answered && c === 'Enter') nextLevel();
+function entrarNaVoz(){
+  if (st.emVoz) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    bolhaSistema('Seu navegador não permite microfone. Use Chrome, Edge, Firefox ou Safari atualizados.');
     return;
   }
-
-  if (e.repeat && KEYMAP[c]) return;
-  if (KEYMAP[c]){ press(KEYMAP[c]); return; }
-
-  if (c === 'KeyP' || c === 'Escape'){
-    if (state === 'playing') pauseGame();
-    else if (state === 'paused') resumeGame();
-  }
-  if (c === 'Enter' && (state === 'menu' || state === 'gameover' || state === 'win')){
-    startGame();
-  }
-}, false);
-
-window.addEventListener('keyup', function (e){
-  var a = KEYMAP[e.code];
-  if (a) release(a);
-}, false);
-
-window.addEventListener('blur', resetInputs, false);
-document.addEventListener('visibilitychange', function (){
-  if (document.hidden){ resetInputs(); pauseGame(); }
-}, false);
-
-/* Botões de toque (touch e mouse) */
-var tbtns = document.querySelectorAll('.tbtn');
-for (var bi = 0; bi < tbtns.length; bi++){
-  (function (b){
-    var k = b.getAttribute('data-k');
-    var down = function (e){
-      if (e.preventDefault) e.preventDefault();
-      b.className += ' on';
-      press(k);
-    };
-    var up = function (e){
-      if (e.preventDefault) e.preventDefault();
-      b.className = b.className.replace(' on', '');
-      release(k);
-    };
-    b.addEventListener('touchstart', down, false);
-    b.addEventListener('touchend', up, false);
-    b.addEventListener('touchcancel', up, false);
-    b.addEventListener('mousedown', down, false);
-    b.addEventListener('mouseup', up, false);
-    b.addEventListener('mouseleave', up, false);
-  })(tbtns[bi]);
+  navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+    .then(function (stream){
+      st.meuStream = stream;
+      st.emVoz = true;
+      $('btnVoz').textContent = '🎙 Na voz · toque para sair';
+      $('btnMudo').classList.remove('hidden');
+      enviar({ tipo: 'voz-on', nome: st.nome, pid: st.meuId });
+      if (st.isHost) difundirRoster();
+      chamarTodosEmVoz();
+    })
+    .catch(function (){
+      bolhaSistema('Não consegui acessar o microfone. Autorize o acesso e tente de novo.');
+    });
+}
+function alternarMudo(){
+  if (!st.emVoz || !st.meuStream) return;
+  st.mudo = !st.mudo;
+  var trs = st.meuStream.getAudioTracks();
+  for (var i = 0; i < trs.length; i++) trs[i].enabled = !st.mudo;
+  $('btnMudo').textContent = st.mudo ? '🎙' : '🔇';
 }
 
-/* Qualidade gráfica */
-var gfxBtn = $('gfxBtn');
-function refreshGfxBtn(){ gfxBtn.textContent = 'Gráficos: ' + Q().label; }
-gfxBtn.onclick = function (){
-  quality = QORDER[(QORDER.indexOf(quality) + 1) % QORDER.length];
-  refreshGfxBtn();
-  resize();
-};
-
-/* Seletor de personagem */
-var charBtn = $('btnChar');
-function refreshCharBtn(){ charBtn.textContent = 'Personagem: ' + curChar().name; }
-charBtn.onclick = function (){
-  charIdx = (charIdx + 1) % CHARS.length;
-  refreshCharBtn();
-};
-
-$('btnStart').onclick = startGame;
-$('btnRestart').onclick = startGame;
-$('btnWinRestart').onclick = startGame;
-$('btnResume').onclick = resumeGame;
-$('qNext').onclick = nextLevel;
-$('fsBtn').onclick = toggleFullscreen;
-
-window.addEventListener('resize', resize, false);
-window.addEventListener('orientationchange', function (){
-  resize();
-  setTimeout(resize, 80); // mobile às vezes reporta medidas antigas na rotação
-}, false);
-
 /* =========================================================
-   INICIALIZAÇÃO
+   INTERFACE
    ========================================================= */
-refreshGfxBtn();
-refreshCharBtn();
-resize();
-level = buildLevel(0);
-p = makePlayer(60, GROUND_Y - PH);
-showOnly('menu');
-requestAnimationFrame(frame);
+function enviarTexto(){
+  var t = $('txtMsg').value.replace(/^\s+|\s+$/g, '');
+  if (!t) return;
+  $('txtMsg').value = '';
+  bolhaMsg(st.nome, t, true);
+  enviar({ tipo: 'msg', nome: st.nome, texto: t });
+}
+
+function comecar(anfitriao){
+  var nome = $('inNome').value.replace(/^\s+|\s+$/g, '');
+  var codigo = $('inSala').value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  if (!nome){ erro('Digite seu nome.'); $('inNome').focus(); return; }
+  if (!anfitriao && codigo.length < 4){ erro('Digite o código da sala (4+ caracteres).'); $('inSala').focus(); return; }
+  st.nome = nome;
+  if (anfitriao){
+    var novo = codigo.length >= 4 ? codigo : gerarCodigo();
+    tentarAnfitriao(novo);
+    erro('');
+    $('btnCriar').disabled = true; $('btnEntrar').disabled = true;
+    setTimeout(function (){ $('btnCriar').disabled = false; $('btnEntrar').disabled = false; }, 2500);
+  } else {
+    entrarComoCliente(codigo);
+    $('btnCriar').disabled = true; $('btnEntrar').disabled = true;
+    setTimeout(function (){ $('btnCriar').disabled = false; $('btnEntrar').disabled = false; }, 2500);
+  }
+}
+
+/* ---------- ligações da interface ---------- */
+$('btnCriar').onclick = function (){ comecar(true); };
+$('btnEntrar').onclick = function (){ comecar(false); };
+$('btnEnviar').onclick = enviarTexto;
+$('btnVoz').onclick = function (){
+  if (!st.emVoz) entrarNaVoz();
+  else sairDaVoz();
+};
+$('btnMudo').onclick = alternarMudo;
+$('btnCopiar').onclick = function (){
+  var texto = 'Entre no ZapZap: ' + location.origin + location.pathname + '?sala=' + st.sala;
+  if (navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(texto).then(function (){ $('btnCopiar').textContent = '✅'; setTimeout(function (){ $('btnCopiar').textContent = '📋'; }, 1200); },
+      function (){ $('btnCopiar').textContent = st.sala; });
+  else $('btnCopiar').textContent = st.sala;
+};
+$('btnSair').onclick = function (){
+  try { enviar({ tipo: 'saiu', nome: st.nome }); } catch (e) {}
+  desligarVozLocal();
+  limparPeer();
+  st.conns = []; st.hostConn = null; st.roster = {};
+  $('mensagens').innerHTML = '';
+  $('sala').classList.add('hidden');
+  $('telaEntrada').classList.remove('hidden');
+};
+$('inSala').addEventListener('keydown', function (e){ if (e.key === 'Enter') comecar(false); });
+$('inNome').addEventListener('keydown', function (e){ if (e.key === 'Enter') $('inSala').focus(); });
+$('txtMsg').addEventListener('keydown', function (e){
+  if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); enviarTexto(); }
+});
+window.addEventListener('beforeunload', function (){
+  try { enviar({ tipo: 'saiu', nome: st.nome }); desligarVozLocal(); limparPeer(); } catch (e) {}
+});
+
+/* ---------- inicialização ---------- */
+try { var salvo = localStorage.getItem('zapzap_nome'); if (salvo) $('inNome').value = salvo; } catch (e) {}
+(function (){
+  var m = location.search.match(/[?&]sala=([A-Za-z0-9]{3,8})/);
+  if (m){ $('inSala').value = m[1].toUpperCase(); $('inNome').focus(); }
+  else $('inNome').focus();
+})();
 </script>
 </body>
 </html>
