@@ -100,7 +100,7 @@
   <div class="box">
     <h1>Travessia do Pampa</h1>
     <h2>Parkour gauchesco com Simões Lopes Neto</h2>
-    <p>Atravesse 10 fases inspiradas nas paisagens, lendas e personagens da obra do autor. Ao chegar ao fim de cada fase, responda a um quiz. Se você acertar as <b>10 perguntas</b>, ganha <b>1 doce de verdade</b> no final.</p>
+    <p>Atravesse 10 fases inspiradas nas paisagens, lendas e personagens da obra do autor. Ao chegar ao fim de cada fase, responda a um quiz e acerte as 10 perguntas para completar a travessia.</p>
     <p class="keys"><b>Teclado:</b> setas ou A/D andam, Espaço ou W pulam, Q dá dash, P pausa.</p>
     <p class="keys"><b>Quiz:</b> clique na alternativa ou use as teclas 1, 2, 3 e 4.</p>
     <p class="keys"><b>Celular e Switch:</b> use os botões na tela (dá pra ligar/desligar no botão "Controles" no topo).</p>
@@ -147,7 +147,6 @@
     <p>Você atravessou as 10 fases e conheceu um pouco da obra de Simões Lopes Neto.</p>
     <p>Pontuação final: <b id="winScore">0</b></p>
     <p>Perguntas certas: <b id="winCorrect">0</b> de 10</p>
-    <p id="winDoce"></p>
     <button id="btnWinRestart" class="btn">Jogar de novo</button>
   </div>
 </div>
@@ -471,12 +470,8 @@ function gameOver(){
 function showWin(){
   state = 'win';
   resetInputs();
-  var perfect = correctCount === QUIZ.length;
   $('winScore').textContent = score;
   $('winCorrect').textContent = correctCount;
-  $('winDoce').textContent = perfect
-    ? 'Você acertou tudo e ganhou 1 doce de verdade!'
-    : 'Não foi dessa vez. Para ganhar o doce, acerte todas as 10 perguntas.';
   showOnly('win');
 }
 
@@ -563,7 +558,7 @@ function answer(i){
     msg = 'Correto! Você já acertou ' + correctCount + ' de ' + (levelIdx + 1) + ' perguntas.';
   } else {
     btns[i].classList.add('wrong');
-    msg = 'Resposta incorreta. A certa era a alternativa ' + 'ABCD'.charAt(q.a) + '. Para ganhar o doce, precisa acertar todas.';
+    msg = 'Resposta incorreta. A certa era a alternativa ' + 'ABCD'.charAt(q.a) + '.';
   }
   $('qFeedback').innerHTML = '<strong>' + msg + '</strong><br>' + q.e;
   $('qFeedback').classList.remove('hidden');
