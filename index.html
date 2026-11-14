@@ -50,7 +50,6 @@
   }
   #fsBtn { right:8px; }
   #gfxBtn { right:130px; }
-  #tcBtn { left:8px; }
   #fpsBox {
     position:fixed; top:44px; right:8px; z-index:20; color:#fff3d6;
     background:rgba(0,0,0,.4); padding:2px 8px; border-radius:6px;
@@ -72,6 +71,20 @@
   #bJump  { right:14px; }
   #bDash  { right:100px; bottom:22px; }
 
+  /* Instruções de como jogar: cada dispositivo vê só as dele */
+  body.touch #howKeys { display:none; }
+  body:not(.touch) #howTouch { display:none; }
+
+  /* Tablets: botões de toque maiores */
+  @media (min-width: 640px){
+    body.touch .tbtn { width:112px; height:112px; font-size:36px; line-height:106px; bottom:20px; }
+    body.touch .tbtn.small { width:94px; height:94px; font-size:22px; line-height:88px; bottom:28px; }
+    body.touch #bRight { left:142px; }
+    body.touch #bJump { right:20px; }
+    body.touch #bDash { right:140px; bottom:28px; }
+    body.touch #touch { height:150px; }
+  }
+
   /* Telas estreitas: evita sobreposição dos botões do topo */
   @media (max-width: 460px){
     .topBtn { font-size:12px; padding:5px 8px; }
@@ -83,7 +96,6 @@
 <body>
 
 <canvas id="game"></canvas>
-<button id="tcBtn" class="topBtn">Controles: Tela</button>
 <button id="fsBtn" class="topBtn">Tela cheia</button>
 <button id="gfxBtn" class="topBtn">Gráficos: Baixo</button>
 <div id="fpsBox">FPS: --</div>
@@ -101,9 +113,9 @@
     <h1>Travessia do Pampa</h1>
     <h2>Parkour gauchesco com Simões Lopes Neto</h2>
     <p>Atravesse 10 fases inspiradas nas paisagens, lendas e personagens da obra do autor. Ao chegar ao fim de cada fase, responda a um quiz. Se você acertar as <b>10 perguntas</b>, ganha <b>1 pirulito de verdade</b> no final.</p>
-    <p class="keys"><b>Teclado:</b> setas ou A/D andam, Espaço ou W pulam, Q dá dash, P pausa.</p>
+    <p class="keys" id="howKeys"><b>Teclado:</b> setas ou A/D andam, Espaço ou W pulam, Q dá dash, P pausa.</p>
+    <p class="keys" id="howTouch"><b>Como jogar:</b> use os botões da tela — ◀ ▶ andam, ⇧ pula (pode pular de novo no ar) e DASH dá o impulso rápido.</p>
     <p class="keys"><b>Quiz:</b> clique na alternativa ou use as teclas 1, 2, 3 e 4.</p>
-    <p class="keys"><b>Celular e Switch:</b> use os botões na tela (dá pra ligar/desligar no botão "Controles" no topo).</p>
     <button id="btnChar" class="btn alt">Personagem: Gaúcho</button>
     <br>
     <button id="btnStart" class="btn">Começar</button>
@@ -1178,21 +1190,11 @@ function frame(now){
    ========================================================= */
 var isTouch = /Nintendo|Switch/i.test(navigator.userAgent) ||
               (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-/* PC com tela de toque NÃO liga os botões — mas dá pra alternar à mão */
-var touchPref = null;
-try { touchPref = localStorage.getItem('ytmig_touch'); } catch (err) {}
-var touchOn = touchPref === '1' ? true : (touchPref === '0' ? false : isTouch);
+/* PC com tela de toque NÃO liga os botões; celular e Switch ligam automaticamente */
 function applyTouchMode(){
-  if (touchOn) document.body.classList.add('touch');
+  if (isTouch) document.body.classList.add('touch');
   else document.body.classList.remove('touch');
-  $('tcBtn').textContent = 'Controles: ' + (touchOn ? 'Tela' : 'Teclado');
 }
-var tcBtn = $('tcBtn');
-tcBtn.onclick = function (){
-  touchOn = !touchOn;
-  try { localStorage.setItem('ytmig_touch', touchOn ? '1' : '0'); } catch (err) {}
-  applyTouchMode();
-};
 applyTouchMode();
 
 function press(a){
