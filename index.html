@@ -127,28 +127,25 @@
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 /* =========================================================
-   ZapZap — chat de texto e voz (WebRTC via PeerJS)
-   Salas: código curto. Quem cria a sala fica com o ID fixo
-   "ytmigzap-<CÓDIGO>" e retransmite as mensagens para todos.
+   ZapZap — chat de texto e voz
+   Texto: servidor relay próprio (SSE + POST) com histórico;
+   se ele estiver fora do ar, cai automático para P2P (PeerJS).
+   Voz: sempre WebRTC em malha completa via PeerJS.
    ========================================================= */
 var $ = function (id) { return document.getElementById(id); };
 var PREFIXO = 'ytmigzap-';
+var SERVIDOR_TUNNEL = 'https://mary-gel-mix-antonio.trycloudflare.com';
 
-/* ---------- estado ---------- */
 var st = {
-  peer: null,          // objeto PeerJS local
-  meuId: '',           // meu peer id
-  isHost: false,
-  sala: '',
-  nome: '',
-  conns: [],           // (host) conexões de dados dos participantes
-  hostConn: null,      // (cliente) conexão com o host
-  roster: {},          // pid -> nome
-  emVoz: false,
-  mudo: false,
-  meuStream: null,
-  calls: {},           // pid -> MediaConnection (voz)
-  audios: {}           // pid -> elemento <audio>
+  peer: null, meuId: '', meuPid: '',
+  fonte: '',            /* 'relay' | 'peerjs' */
+  es: null,             /* EventSource do relay */
+  isHost: false, codigo: '', nome: '',
+  conns: [], hostConn: null,
+  roster: {},           /* pidCanal -> { nome, voz (id P2P p/ chamadas), emVoz } */
+  emVoz: false, mudo: false, meuStream: null,
+  calls: {}, audios: {},
+  _hist: '', _querAnfitriao: false
 };
 
 /* ---------- utilitários ---------- */
@@ -164,6 +161,11 @@ function horaAgora(){
 }
 function erro(msg){ $('avisoErro').textContent = msg; }
 function scrollToFim(){ var m = $('mensagens'); m.scrollTop = m.scrollHeight; }
+function urlServidor(){
+  if (window.__SERVIDOR__) return window.__SERVIDOR__;
+  if (location.origin.indexOf('ytmig.github.io') < 0) return location.origin; /* servido pelo relay */
+  return SERVIDOR_TUNNEL;
+}
 
 /* ---------- mensagens na tela ---------- */
 function bolhaSistema(texto){
@@ -172,48 +174,172 @@ function bolhaSistema(texto){
   var t = document.createElement('div'); t.className = 'texto'; t.textContent = texto;
   b.appendChild(t); l.appendChild(b); $('mensagens').appendChild(l); scrollToFim();
 }
-function bolhaMsg(quem, texto, minha){
+function bolhaMsg(quem, texto, minha, hora){
   var l = document.createElement('div'); l.className = 'linha' + (minha ? ' eu' : '');
   var b = document.createElement('div'); b.className = 'bolha';
   if (!minha && quem){
     var q = document.createElement('div'); q.className = 'quem'; q.textContent = quem; b.appendChild(q);
   }
   var t = document.createElement('div'); t.className = 'texto'; t.textContent = texto;
-  var h = document.createElement('div'); h.className = 'hora'; h.textContent = horaAgora();
+  var h = document.createElement('div'); h.className = 'hora'; h.textContent = hora || horaAgora();
   b.appendChild(t); b.appendChild(h); l.appendChild(b); $('mensagens').appendChild(l); scrollToFim();
+}
+function garantirRoster(pid, nome, voz){
+  if (!st.roster[pid]) st.roster[pid] = { nome: nome, emVoz: false, voz: voz || pid };
+  if (voz) st.roster[pid].voz = voz;
+  return st.roster[pid];
+}
+function aplicarRoster(lista){
+  st.roster = {};
+  for (var i = 0; i < lista.length; i++){
+    if (lista[i].pid !== st.meuPid)
+      st.roster[lista[i].pid] = { nome: lista[i].nome, emVoz: !!lista[i].emVoz, voz: lista[i].voz || lista[i].pid };
+  }
+  atualizarStatus();
+  iniciarVozSePronto();
 }
 function atualizarStatus(){
   var n = 1 + Object.keys(st.roster).length;
   var voz = 0;
   for (var pid in st.roster) if (st.roster[pid].emVoz) voz++;
   if (st.emVoz) voz++;
-  $('lblStatus').textContent = (st.isHost ? 'host · ' : '') + 'online · ' + n +
+  var prefixo = (st.isHost && st.fonte === 'peerjs') ? 'host · ' : '';
+  $('lblStatus').textContent = prefixo + 'online · ' + n +
     (n === 1 ? ' pessoa' : ' pessoas') + (voz ? ' · ' + voz + ' na voz' : '');
 }
 
 /* =========================================================
-   ENVIO / RETRANSMISSÃO
+   EVENTOS CANÔNICOS (relay e P2P falam a mesma língua)
    ========================================================= */
-function enviarTodos(dado, excetoConn){
-  var s = JSON.stringify(dado);
-  if (st.isHost){
-    for (var i = 0; i < st.conns.length; i++)
-      if (st.conns[i] !== excetoConn && st.conns[i].open) st.conns[i].send(s);
-  } else if (st.hostConn && st.hostConn.open){
-    st.hostConn.send(s);
+function receberEvento(d){
+  if (d.t === 'historico'){
+    if (st._hist === st.codigo) return; /* reconexão: não repete as bolhas */
+    st._hist = st.codigo;
+    for (var i = 0; i < d.lista.length; i++)
+      bolhaMsg(d.lista[i].nome, d.lista[i].texto, d.lista[i].pid === st.meuPid, d.lista[i].hora);
+    return;
+  }
+  if (d.t === 'sala-ok'){
+    if ($('sala').classList.contains('hidden')) abrirSala(d.codigo, st._querAnfitriao);
+    else if (st.emVoz) enviar({ t: 'voz-on' }); /* reconectou: reavisa que está na voz */
+    return;
+  }
+  if (d.t === 'roster'){ aplicarRoster(d.lista); return; }
+  if (d.pid === st.meuPid) return; /* eco próprio */
+  if (d.t === 'entra'){
+    if (!st.roster[d.pid]){
+      st.roster[d.pid] = { nome: d.nome, emVoz: false, voz: d.voz || d.pid };
+      atualizarStatus();
+      bolhaSistema(d.nome + ' entrou na sala.');
+    }
+  } else if (d.t === 'saida'){
+    var r = st.roster[d.pid];
+    if (r){
+      if (r.emVoz) encerrarVozCom(r.voz);
+      delete st.roster[d.pid];
+      atualizarStatus();
+      bolhaSistema((d.nome || r.nome) + ' saiu da sala.');
+    }
+  } else if (d.t === 'msg'){
+    garantirRoster(d.pid, d.nome);
+    bolhaMsg(d.nome, d.texto, false);
+  } else if (d.t === 'voz-on'){
+    var rv = garantirRoster(d.pid, d.nome, d.voz);
+    rv.emVoz = true;
+    atualizarStatus();
+    bolhaSistema(d.nome + ' entrou na voz.');
+    iniciarVozSePronto();
+  } else if (d.t === 'voz-off'){
+    var ro = st.roster[d.pid];
+    if (ro){ ro.emVoz = false; encerrarVozCom(ro.voz); }
+    atualizarStatus();
+    bolhaSistema(d.nome + ' saiu da voz.');
   }
 }
-function enviar(dado){ if (st.isHost) enviarTodos(dado, null); else enviarTodos(dado); }
 
 /* =========================================================
-   ENTRADA NA SALA
+   ENVIO
    ========================================================= */
+function enviar(d){
+  d.pid = st.meuPid;
+  d.nome = st.nome;
+  if (d.t === 'voz-on' || d.t === 'voz-off') d.voz = st.meuId;
+  if (st.fonte === 'relay'){
+    if (d.t === 'msg') d.hora = horaAgora();
+    try {
+      fetch(urlServidor() + '/sala/' + st.codigo + '/msg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d)
+      }).catch(function () {});
+    } catch (e) {}
+  } else if (st.isHost){
+    enviarTodos(d, null);
+  } else if (st.hostConn && st.hostConn.open){
+    st.hostConn.send(JSON.stringify(d));
+  }
+}
+function enviarTodos(d, excetoConn){
+  var s = JSON.stringify(d);
+  for (var i = 0; i < st.conns.length; i++)
+    if (st.conns[i] !== excetoConn && st.conns[i].open) st.conns[i].send(s);
+}
+
+/* =========================================================
+   CONEXÃO: relay primeiro, P2P de reserve
+   ========================================================= */
+function conectar(codigo, anfitriao){
+  st.codigo = codigo;
+  st._querAnfitriao = anfitriao;
+  st._hist = '';
+  st.meuPid = 'r' + Math.random().toString(36).slice(2, 10);
+  if (!window.__SO_P2P__ && window.EventSource) conectarRelay(codigo);
+  else usarPeerJS(codigo, anfitriao);
+}
+var esTimeout = null;
+function conectarRelay(codigo){
+  st.fonte = 'relay';
+  erro('');
+  var abriu = false;
+  var es = new EventSource(urlServidor() + '/sala/' + codigo + '/eventos?id=' + st.meuPid + '&nome=' + encodeURIComponent(st.nome));
+  st.es = es;
+  es.onopen = function (){
+    abriu = true;
+    if (esTimeout){ clearTimeout(esTimeout); esTimeout = null; }
+  };
+  es.onmessage = function (e){ try { receberEvento(JSON.parse(e.data)); } catch (x) {} };
+  es.onerror = function (){
+    if (!abriu){
+      es.close();
+      if (esTimeout){ clearTimeout(esTimeout); esTimeout = null; }
+      usarPeerJS(codigo, st._querAnfitriao);
+    } else {
+      $('lblStatus').textContent = 'reconectando…';
+    }
+  };
+  esTimeout = setTimeout(function (){
+    if (!abriu){
+      es.close();
+      esTimeout = null;
+      usarPeerJS(codigo, st._querAnfitriao);
+    }
+  }, 4000);
+}
+
+/* ---------- P2P (reserve) ---------- */
+function usarPeerJS(codigo, anfitriao){
+  if (st.fonte === 'peerjs') return;
+  st.fonte = 'peerjs';
+  st.es = null;
+  if (anfitriao) tentarAnfitriao(codigo);
+  else entrarComoCliente(codigo);
+}
 function limparPeer(){
   try { if (st.peer) st.peer.destroy(); } catch (e) {}
   st.peer = null;
 }
 function abrirSala(codigo, anfitriao){
-  st.sala = codigo;
+  st.codigo = codigo;
   st.isHost = anfitriao;
   $('lblSala').textContent = codigo;
   $('telaEntrada').classList.add('hidden');
@@ -225,16 +351,17 @@ function abrirSala(codigo, anfitriao){
   localStorage.setItem('zapzap_nome', st.nome);
 }
 function iniciarVozSePronto(){
-  if (st.emVoz && st.meuStream) chamarTodosEmVoz();
+  if (st.emVoz && st.meuStream) chamarQuemPrecisa();
 }
 
-/* HOST: fica com o ID fixo da sala */
+/* HOST P2P: fica com o ID fixo da sala */
 function tentarAnfitriao(codigo){
   erro('');
   var p = new Peer(PREFIXO + codigo);
   st.peer = p;
   p.on('open', function (id){
     st.meuId = id;
+    st.meuPid = id;
     st.roster = {};
     abrirSala(codigo, true);
     atualizarStatus();
@@ -243,7 +370,6 @@ function tentarAnfitriao(codigo){
   p.on('call', function (call){ atenderVoz(call); });
   p.on('error', function (err){
     if (err && err.type === 'unavailable-id'){
-      /* código já em uso → entra como participante */
       limparPeer();
       entrarComoCliente(codigo);
     } else {
@@ -253,17 +379,18 @@ function tentarAnfitriao(codigo){
   p.on('disconnected', function (){ try { p.reconnect(); } catch (e) {} });
 }
 
-/* CLIENTE: entra na sala de alguém */
+/* CLIENTE P2P: entra na sala de alguém */
 function entrarComoCliente(codigo){
   var p = new Peer();
   st.peer = p;
   p.on('open', function (id){
     st.meuId = id;
+    st.meuPid = id;
     var conn = p.connect(PREFIXO + codigo, { reliable: true });
     st.hostConn = conn;
     conn.on('open', function (){
       abrirSala(codigo, false);
-      enviar({ tipo: 'hello', nome: st.nome, pid: st.meuId });
+      enviar({ t: 'entra' });
     });
     conn.on('data', receberDados);
     conn.on('close', function (){
@@ -289,38 +416,27 @@ function mostrarErroRede(err){
   else $('lblStatus').textContent = 'sem conexão…';
 }
 
-/* HOST: recebe conexão de um participante */
+/* HOST P2P: recebe conexão de um participante */
 function prepararConnHost(conn){
   st.conns.push(conn);
   conn.on('data', function (bruto){
     var d;
     try { d = JSON.parse(bruto); } catch (e) { return; }
-    if (d.tipo === 'hello'){
+    if (d.t === 'entra'){
       conn.pidParticipante = d.pid;
-      st.roster[d.pid] = { nome: d.nome, emVoz: false };
-      bolhaSistema(d.nome + ' entrou na sala.');
+      enviarTodos(d, conn); /* os outros primeiro: garantia da bolha lá */
+      receberEvento(d);
       difundirRoster();
-      enviarTodos(d, conn);
-      iniciarVozSePronto(); /* host em voz chama o novo */
-    } else if (d.tipo === 'msg'){
-      bolhaMsg(d.nome, d.texto, false);
-      enviarTodos(d, conn);
-    } else if (d.tipo === 'voz-on'){
-      if (st.roster[d.pid]) st.roster[d.pid].emVoz = true;
-      bolhaSistema((st.roster[d.pid] || { nome: 'Alguém' }).nome + ' entrou na voz.');
-      difundirRoster();
-      enviarTodos(d, conn);
       iniciarVozSePronto();
-    } else if (d.tipo === 'voz-off'){
-      if (st.roster[d.pid]){
-        bolhaSistema(st.roster[d.pid].nome + ' saiu da voz.');
-        st.roster[d.pid].emVoz = false;
-      }
+    } else if (d.t === 'msg'){
+      receberEvento(d);
+      enviarTodos(d, conn);
+    } else if (d.t === 'voz-on' || d.t === 'voz-off'){
+      receberEvento(d);
       difundirRoster();
       enviarTodos(d, conn);
-      encerrarVozCom(d.pid);
     } else {
-      enviarTodos(d, conn); /* retransmite o resto */
+      enviarTodos(d, conn); /* saida etc: só repassa */
     }
   });
   conn.on('close', function (){
@@ -329,7 +445,7 @@ function prepararConnHost(conn){
     var pid = conn.pidParticipante;
     if (pid && st.roster[pid]){
       bolhaSistema(st.roster[pid].nome + ' saiu da sala.');
-      if (st.roster[pid].emVoz) encerrarVozCom(pid);
+      if (st.roster[pid].emVoz) encerrarVozCom(st.roster[pid].voz);
       delete st.roster[pid];
       difundirRoster();
     }
@@ -337,97 +453,77 @@ function prepararConnHost(conn){
   });
 }
 
-/* HOST: avisa a lista de presença para todos */
+/* HOST P2P: avisa a lista de presença */
 function difundirRoster(){
-  var lista = [];
-  if (st.isHost) lista.push({ pid: st.meuId, nome: st.nome + ' (anfitrião)', emVoz: st.emVoz });
-  for (var pid in st.roster) lista.push({ pid: pid, nome: st.roster[pid].nome });
-  enviar({ tipo: 'roster', lista: lista });
+  if (!st.isHost || st.fonte !== 'peerjs') return;
+  var lista = [{ pid: st.meuPid, nome: st.nome + ' (anfitrião)', emVoz: st.emVoz, voz: st.meuId }];
+  for (var pid in st.roster) lista.push({ pid: pid, nome: st.roster[pid].nome, emVoz: st.roster[pid].emVoz, voz: st.roster[pid].voz });
+  enviar({ t: 'roster', lista: lista });
   atualizarStatus();
 }
 
-/* CLIENTE + HOST: processa dados recebidos */
+/* CLIENTE P2P: dados vindos do host */
 function receberDados(bruto){
   var d;
   try { d = JSON.parse(bruto); } catch (e) { return; }
-  if (d.tipo === 'msg'){
-    bolhaMsg(d.nome, d.texto, false);
-  } else if (d.tipo === 'roster'){
-    st.roster = {};
-    for (var i = 0; i < d.lista.length; i++){
-      if (d.lista[i].pid !== st.meuId) st.roster[d.lista[i].pid] = { nome: d.lista[i].nome, emVoz: !!d.lista[i].emVoz };
-    }
-    atualizarStatus();
-    iniciarVozSePronto();
-  } else if (d.tipo === 'hello'){
-    if (!st.roster[d.pid]) st.roster[d.pid] = { nome: d.nome, emVoz: false };
-    atualizarStatus();
-    bolhaSistema(d.nome + ' entrou na sala.');
-    iniciarVozSePronto();
-  } else if (d.tipo === 'voz-on'){
-    if (!st.roster[d.pid]) st.roster[d.pid] = { nome: d.nome, emVoz: false };
-    st.roster[d.pid].emVoz = true;
-    atualizarStatus();
-    bolhaSistema(d.nome + ' entrou na voz.');
-    iniciarVozSePronto();
-  } else if (d.tipo === 'voz-off'){
-    if (st.roster[d.pid]) st.roster[d.pid].emVoz = false;
-    atualizarStatus();
-    bolhaSistema(d.nome + ' saiu da voz.');
-    encerrarVozCom(d.pid);
-  } else if (d.tipo === 'saiu'){
-    if (st.roster[d.pid]) delete st.roster[d.pid];
-    atualizarStatus();
-    bolhaSistema(d.nome + ' saiu da sala.');
-  }
+  receberEvento(d);
 }
 
 /* =========================================================
-   VOZ (malha completa: quem está na voz chama quem entra)
+   VOZ (malha completa via PeerJS; só o id "menor" liga)
    ========================================================= */
-function chamarTodosEmVoz(){
+function garantirPeer(cb){
+  if (st.peer){ cb(); return; }
+  var p = new Peer();
+  st.peer = p;
+  p.on('open', function (id){ st.meuId = id; cb(); });
+  p.on('call', function (call){ atenderVoz(call); });
+  p.on('error', function (err){ mostrarErroRede(err); });
+  p.on('disconnected', function (){ try { p.reconnect(); } catch (e) {} });
+}
+function chamarQuemPrecisa(){
   if (!st.emVoz || !st.meuStream) return;
   for (var pid in st.roster){
-    if (!st.roster[pid].emVoz || st.calls[pid] || pid === st.meuId) continue;
-    /* só quem tem o id "menor" liga: evita os dois ligarem um para o outro ao mesmo tempo */
-    if (st.meuId < pid) chamar(pid);
+    var r = st.roster[pid];
+    if (!r.emVoz || !r.voz || st.calls[r.voz] || r.voz === st.meuId) continue;
+    if (st.meuId < r.voz) chamar(r.voz);
   }
 }
-function chamar(pid){
-  if (!st.meuStream || st.calls[pid]) return;
-  var call = st.peer.call(pid, st.meuStream);
-  registrarCall(pid, call);
+function chamar(vozId){
+  if (!st.meuStream || st.calls[vozId]) return;
+  var call = st.peer.call(vozId, st.meuStream);
+  registrarCall(vozId, call);
 }
 function atenderVoz(call){
   registrarCall(call.peer, call);
   call.answer(st.meuStream); /* sem stream = ouvir apenas */
 }
-function registrarCall(pid, call){
-  st.calls[pid] = call;
+function registrarCall(vozId, call){
+  st.calls[vozId] = call;
   call.on('stream', function (remoto){
-    if (!st.audios[pid]){
+    if (!st.audios[vozId]){
       var a = document.createElement('audio');
       a.autoplay = true;
       a.srcObject = remoto;
       document.body.appendChild(a);
-      st.audios[pid] = a;
+      st.audios[vozId] = a;
       var play = a.play && a.play();
-      if (play && play.catch) play.catch(function (){ /* autoplay bloqueado: usuário precisa tocar */ });
+      if (play && play.catch) play.catch(function (){ /* autoplay bloqueado */ });
     }
   });
-  call.on('close', function (){ encerrarVozCom(pid); });
+  call.on('close', function (){ encerrarVozCom(vozId); });
 }
-function encerrarVozCom(pid){
-  var call = st.calls[pid];
-  if (call){ try { call.close(); } catch (e) {} delete st.calls[pid]; }
-  if (st.audios[pid]){ try { st.audios[pid].srcObject = null; st.audios[pid].remove(); } catch (e) {} delete st.audios[pid]; }
+function encerrarVozCom(vozId){
+  var call = st.calls[vozId];
+  if (call){ try { call.close(); } catch (e) {} delete st.calls[vozId]; }
+  if (st.audios[vozId]){ try { st.audios[vozId].srcObject = null; st.audios[vozId].remove(); } catch (e) {} delete st.audios[vozId]; }
 }
 function desligarVozLocal(){
   st.emVoz = false; st.mudo = false;
   $('btnVoz').textContent = '🎙 Entrar na voz';
   $('btnMudo').classList.add('hidden');
   $('btnMudo').textContent = '🔇';
-  for (var pid in st.calls) encerrarVozCom(pid);
+  for (var vozId in st.calls) encerrarVozCom(vozId);
   if (st.meuStream){
     var trs = st.meuStream.getTracks();
     for (var i = 0; i < trs.length; i++) try { trs[i].stop(); } catch (e) {}
@@ -436,8 +532,8 @@ function desligarVozLocal(){
 }
 function sairDaVoz(){
   desligarVozLocal();
-  enviar({ tipo: 'voz-off', nome: st.nome, pid: st.meuId });
-  if (st.isHost) difundirRoster();
+  enviar({ t: 'voz-off' });
+  difundirRoster();
   bolhaSistema('Você saiu da voz.');
 }
 function entrarNaVoz(){
@@ -446,19 +542,21 @@ function entrarNaVoz(){
     bolhaSistema('Seu navegador não permite microfone. Use Chrome, Edge, Firefox ou Safari atualizados.');
     return;
   }
-  navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
-    .then(function (stream){
-      st.meuStream = stream;
-      st.emVoz = true;
-      $('btnVoz').textContent = '🎙 Na voz · toque para sair';
-      $('btnMudo').classList.remove('hidden');
-      enviar({ tipo: 'voz-on', nome: st.nome, pid: st.meuId });
-      if (st.isHost) difundirRoster();
-      chamarTodosEmVoz();
-    })
-    .catch(function (){
-      bolhaSistema('Não consegui acessar o microfone. Autorize o acesso e tente de novo.');
-    });
+  garantirPeer(function (){
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+      .then(function (stream){
+        st.meuStream = stream;
+        st.emVoz = true;
+        $('btnVoz').textContent = '🎙 Na voz · toque para sair';
+        $('btnMudo').classList.remove('hidden');
+        enviar({ t: 'voz-on' });
+        difundirRoster();
+        chamarQuemPrecisa();
+      })
+      .catch(function (){
+        bolhaSistema('Não consegui acessar o microfone. Autorize o acesso e tente de novo.');
+      });
+  });
 }
 function alternarMudo(){
   if (!st.emVoz || !st.meuStream) return;
@@ -476,7 +574,7 @@ function enviarTexto(){
   if (!t) return;
   $('txtMsg').value = '';
   bolhaMsg(st.nome, t, true);
-  enviar({ tipo: 'msg', nome: st.nome, texto: t });
+  enviar({ t: 'msg', texto: t });
 }
 
 function comecar(anfitriao){
@@ -485,17 +583,9 @@ function comecar(anfitriao){
   if (!nome){ erro('Digite seu nome.'); $('inNome').focus(); return; }
   if (!anfitriao && codigo.length < 4){ erro('Digite o código da sala (4+ caracteres).'); $('inSala').focus(); return; }
   st.nome = nome;
-  if (anfitriao){
-    var novo = codigo.length >= 4 ? codigo : gerarCodigo();
-    tentarAnfitriao(novo);
-    erro('');
-    $('btnCriar').disabled = true; $('btnEntrar').disabled = true;
-    setTimeout(function (){ $('btnCriar').disabled = false; $('btnEntrar').disabled = false; }, 2500);
-  } else {
-    entrarComoCliente(codigo);
-    $('btnCriar').disabled = true; $('btnEntrar').disabled = true;
-    setTimeout(function (){ $('btnCriar').disabled = false; $('btnEntrar').disabled = false; }, 2500);
-  }
+  conectar(anfitriao ? (codigo.length >= 4 ? codigo : gerarCodigo()) : codigo, anfitriao);
+  $('btnCriar').disabled = true; $('btnEntrar').disabled = true;
+  setTimeout(function (){ $('btnCriar').disabled = false; $('btnEntrar').disabled = false; }, 2500);
 }
 
 /* ---------- ligações da interface ---------- */
@@ -508,17 +598,19 @@ $('btnVoz').onclick = function (){
 };
 $('btnMudo').onclick = alternarMudo;
 $('btnCopiar').onclick = function (){
-  var texto = 'Entre no ZapZap: ' + location.origin + location.pathname + '?sala=' + st.sala;
+  var texto = 'Entre no ZapZap: ' + location.origin + location.pathname + '?sala=' + st.codigo;
   if (navigator.clipboard && navigator.clipboard.writeText)
     navigator.clipboard.writeText(texto).then(function (){ $('btnCopiar').textContent = '✅'; setTimeout(function (){ $('btnCopiar').textContent = '📋'; }, 1200); },
-      function (){ $('btnCopiar').textContent = st.sala; });
-  else $('btnCopiar').textContent = st.sala;
+      function (){ $('btnCopiar').textContent = st.codigo; });
+  else $('btnCopiar').textContent = st.codigo;
 };
 $('btnSair').onclick = function (){
-  try { enviar({ tipo: 'saiu', nome: st.nome }); } catch (e) {}
+  try { enviar({ t: 'saida' }); } catch (e) {}
   desligarVozLocal();
+  if (st.es){ try { st.es.close(); } catch (e) {} st.es = null; }
   limparPeer();
   st.conns = []; st.hostConn = null; st.roster = {};
+  st.fonte = ''; st.codigo = ''; st.isHost = false; st._hist = '';
   $('mensagens').innerHTML = '';
   $('sala').classList.add('hidden');
   $('telaEntrada').classList.remove('hidden');
@@ -529,7 +621,7 @@ $('txtMsg').addEventListener('keydown', function (e){
   if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); enviarTexto(); }
 });
 window.addEventListener('beforeunload', function (){
-  try { enviar({ tipo: 'saiu', nome: st.nome }); desligarVozLocal(); limparPeer(); } catch (e) {}
+  try { enviar({ t: 'saida' }); desligarVozLocal(); limparPeer(); } catch (e) {}
 });
 
 /* ---------- inicialização ---------- */
@@ -539,6 +631,7 @@ try { var salvo = localStorage.getItem('zapzap_nome'); if (salvo) $('inNome').va
   if (m){ $('inSala').value = m[1].toUpperCase(); $('inNome').focus(); }
   else $('inNome').focus();
 })();
+
 </script>
 </body>
 </html>
