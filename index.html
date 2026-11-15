@@ -124,7 +124,7 @@
   </div>
 </div>
 
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';document.head.appendChild(s)"></script>
 <script>
 /* =========================================================
    ZapZap — chat de texto e voz
@@ -139,13 +139,13 @@ var SERVIDOR_TUNNEL = 'https://mary-gel-mix-antonio.trycloudflare.com';
 var st = {
   peer: null, meuId: '', meuPid: '',
   fonte: '',            /* 'relay' | 'peerjs' */
-  es: null,             /* EventSource do relay */
   isHost: false, codigo: '', nome: '',
   conns: [], hostConn: null,
   roster: {},           /* pidCanal -> { nome, voz (id P2P p/ chamadas), emVoz } */
   emVoz: false, mudo: false, meuStream: null,
   calls: {}, audios: {},
-  _hist: '', _querAnfitriao: false
+  _hist: '', _querAnfitriao: false,
+  desde: 0, relayOk: false
 };
 
 /* ---------- utilitários ---------- */
@@ -292,45 +292,62 @@ function conectar(codigo, anfitriao){
   st.codigo = codigo;
   st._querAnfitriao = anfitriao;
   st._hist = '';
+  st.desde = 0;
+  st.relayOk = false;
+  pollFalhas = 0;
   st.meuPid = 'r' + Math.random().toString(36).slice(2, 10);
-  if (!window.__SO_P2P__ && window.EventSource) conectarRelay(codigo);
+  erro('Conectando…');
+  if (!window.__SO_P2P__ && window.fetch) conectarRelay(codigo);
   else usarPeerJS(codigo, anfitriao);
 }
-var esTimeout = null;
+
+/* relay: long-polling — um pedido comum que o servidor responde assim que
+   há evento novo (funciona mesmo onde streams/WebSocket são bloqueados) */
+var pollFalhas = 0;
 function conectarRelay(codigo){
   st.fonte = 'relay';
-  erro('');
-  var abriu = false;
-  var es = new EventSource(urlServidor() + '/sala/' + codigo + '/eventos?id=' + st.meuPid + '&nome=' + encodeURIComponent(st.nome));
-  st.es = es;
-  es.onopen = function (){
-    abriu = true;
-    if (esTimeout){ clearTimeout(esTimeout); esTimeout = null; }
-  };
-  es.onmessage = function (e){ try { receberEvento(JSON.parse(e.data)); } catch (x) {} };
-  es.onerror = function (){
-    if (!abriu){
-      es.close();
-      if (esTimeout){ clearTimeout(esTimeout); esTimeout = null; }
-      usarPeerJS(codigo, st._querAnfitriao);
-    } else {
-      $('lblStatus').textContent = 'reconectando…';
-    }
-  };
-  esTimeout = setTimeout(function (){
-    if (!abriu){
-      es.close();
-      esTimeout = null;
-      usarPeerJS(codigo, st._querAnfitriao);
-    }
-  }, 4000);
+  puxarRelay(codigo);
+}
+function puxarRelay(codigo){
+  fetch(urlServidor() + '/sala/' + codigo + '/puxar?id=' + st.meuPid + '&nome=' + encodeURIComponent(st.nome) + '&desde=' + (st.desde || 0))
+    .then(function (r){
+      if (!r.ok) throw new Error('http ' + r.status);
+      return r.json();
+    })
+    .then(function (d){
+      if (st.fonte !== 'relay' || st.codigo !== codigo) return; /* migrou p/ P2P ou saiu */
+      st.relayOk = true;
+      pollFalhas = 0;
+      st.desde = d.proxima;
+      for (var i = 0; i < d.eventos.length; i++) receberEvento(d.eventos[i]);
+      if ($('lblStatus').textContent === 'reconectando…') atualizarStatus();
+      if (st.fonte === 'relay' && st.codigo === codigo) puxarRelay(codigo);
+    })
+    .catch(function (){
+      if (st.fonte !== 'relay' || st.codigo !== codigo) return;
+      if (!st.relayOk){
+        pollFalhas++;
+        if (pollFalhas >= 3){
+          erro('Servidor fora do ar — tentando conexão direta…');
+          usarPeerJS(codigo, st._querAnfitriao);
+          return;
+        }
+        setTimeout(function (){ puxarRelay(codigo); }, 500);
+      } else {
+        $('lblStatus').textContent = 'reconectando…';
+        setTimeout(function (){ puxarRelay(codigo); }, 2000);
+      }
+    });
 }
 
 /* ---------- P2P (reserve) ---------- */
 function usarPeerJS(codigo, anfitriao){
   if (st.fonte === 'peerjs') return;
   st.fonte = 'peerjs';
-  st.es = null;
+  if (typeof Peer === 'undefined'){
+    erro('A conexão direta não carregou. Recarregue a página e tente de novo.');
+    return;
+  }
   if (anfitriao) tentarAnfitriao(codigo);
   else entrarComoCliente(codigo);
 }
@@ -344,6 +361,7 @@ function abrirSala(codigo, anfitriao){
   $('lblSala').textContent = codigo;
   $('telaEntrada').classList.add('hidden');
   $('sala').classList.remove('hidden');
+  erro('');
   bolhaSistema(anfitriao
     ? 'Sala criada! Código: ' + codigo + ' — mande para quem quiser conversar.'
     : 'Você entrou na sala ' + codigo + '.');
@@ -474,6 +492,10 @@ function receberDados(bruto){
    ========================================================= */
 function garantirPeer(cb){
   if (st.peer){ cb(); return; }
+  if (typeof Peer === 'undefined'){
+    bolhaSistema('A conexão de voz não carregou. Recarregue a página e tente de novo.');
+    return;
+  }
   var p = new Peer();
   st.peer = p;
   p.on('open', function (id){ st.meuId = id; cb(); });
@@ -607,10 +629,10 @@ $('btnCopiar').onclick = function (){
 $('btnSair').onclick = function (){
   try { enviar({ t: 'saida' }); } catch (e) {}
   desligarVozLocal();
-  if (st.es){ try { st.es.close(); } catch (e) {} st.es = null; }
   limparPeer();
   st.conns = []; st.hostConn = null; st.roster = {};
   st.fonte = ''; st.codigo = ''; st.isHost = false; st._hist = '';
+  st.desde = 0; st.relayOk = false;
   $('mensagens').innerHTML = '';
   $('sala').classList.add('hidden');
   $('telaEntrada').classList.remove('hidden');
@@ -621,7 +643,16 @@ $('txtMsg').addEventListener('keydown', function (e){
   if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); enviarTexto(); }
 });
 window.addEventListener('beforeunload', function (){
-  try { enviar({ t: 'saida' }); desligarVozLocal(); limparPeer(); } catch (e) {}
+  try {
+    if (st.fonte === 'relay' && navigator.sendBeacon && st.codigo){
+      navigator.sendBeacon(urlServidor() + '/sala/' + st.codigo + '/msg',
+        JSON.stringify({ t: 'saida', pid: st.meuPid, nome: st.nome }));
+    } else {
+      enviar({ t: 'saida' });
+    }
+    desligarVozLocal();
+    limparPeer();
+  } catch (e) {}
 });
 
 /* ---------- inicialização ---------- */
