@@ -56,6 +56,16 @@
   .topoBtn:disabled { opacity:.35; cursor:default; }
   .topoBtn.gravando { background:#f15c6d; }
 
+  #canais {
+    flex-shrink:0; display:flex; gap:6px; padding:7px 10px;
+    overflow-x:auto; background:#00473f; -webkit-overflow-scrolling:touch;
+  }
+  #canais .chip {
+    background:rgba(255,255,255,.16); color:#fff; border:0; border-radius:14px;
+    padding:5px 13px; font:13px 'Segoe UI', Arial, sans-serif; cursor:pointer; white-space:nowrap;
+  }
+  #canais .chip.ativo { background:#25d366; color:#0b141a; font-weight:bold; }
+
   #mensagens {
     flex:1; overflow-y:auto; padding:14px 10px 6px 10px;
     background:#efeae2; -webkit-user-select:text; user-select:text;
@@ -138,6 +148,7 @@
     <button id="btnCopiar" class="topoBtn" title="Copiar código da sala">📋</button>
     <button id="btnSair" class="topoBtn" title="Sair da sala">✖</button>
   </div>
+  <div id="canais"></div>
   <div id="mensagens"></div>
   <div class="barraInput">
     <textarea id="txtMsg" rows="1" placeholder="Mensagem"></textarea>
@@ -170,7 +181,11 @@ var st = {
   desde: 0, relayOk: false,
   senhaHash: '',        /* hash da senha da sala (o texto nunca sai daqui) */
   conta: null,          /* { nick } quando logado */
-  _migrou: false, _tentP2P: 0
+  _migrou: false, _tentP2P: 0,
+  canais: ['geral'],    /* canais do estilo Stoat (o primeiro é o 'geral') */
+  canal: 'geral',       /* canal aberto agora */
+  log: [],              /* mensagens recebidas (todas as salas) p/ trocar de canal */
+  _logSala: ''
 };
 
 /* ---------- utilitários ---------- */
@@ -240,6 +255,53 @@ function atualizarStatus(){
     (n === 1 ? ' pessoa' : ' pessoas') + (voz ? ' · ' + voz + ' na voz' : '');
 }
 
+/* ---------- canais (estilo Stoat) ---------- */
+function atualizarCanais(lista){
+  st.canais = (lista && lista.length ? lista : ['geral']).slice(0, 12);
+  if (st.canais.indexOf(st.canal) < 0) st.canal = st.canais[0];
+  renderCanais();
+}
+function renderCanais(){
+  var barra = $('canais');
+  if (!barra) return;
+  barra.innerHTML = '';
+  for (var i = 0; i < st.canais.length; i++){
+    (function (nome){
+      var chip = document.createElement('button');
+      chip.className = 'chip' + (nome === st.canal ? ' ativo' : '');
+      chip.textContent = nome;
+      chip.onclick = function (){ trocarCanal(nome); };
+      barra.appendChild(chip);
+    })(st.canais[i]);
+  }
+  if (st.isHost){
+    var mais = document.createElement('button');
+    mais.className = 'chip';
+    mais.textContent = '+';
+    mais.title = 'Criar canal';
+    mais.onclick = criarCanal;
+    barra.appendChild(mais);
+  }
+}
+function trocarCanal(nome){
+  if (st.canais.indexOf(nome) < 0) return;
+  st.canal = nome;
+  renderCanais();
+  $('mensagens').innerHTML = '';
+  for (var i = 0; i < st.log.length; i++){
+    var m = st.log[i];
+    if ((m.c || 'geral') === st.canal) bolhaMsg(m.nome, m.texto, m.pid === st.meuPid, m.hora);
+  }
+  scrollToFim();
+}
+function criarCanal(){
+  var nome = (prompt('Nome do novo canal:') || '').replace(/^\s+|\s+$/g, '').slice(0, 20);
+  if (!nome) return;
+  var ev = { t: 'canal', nome: nome };
+  receberEvento(ev);
+  enviar(ev);
+}
+
 /* =========================================================
    EVENTOS CANÔNICOS (relay e P2P falam a mesma língua)
    ========================================================= */
@@ -254,6 +316,14 @@ function receberEvento(d){
   if (d.t === 'sala-ok'){
     if ($('sala').classList.contains('hidden')) abrirSala(d.codigo, st._querAnfitriao);
     else if (st.emVoz) enviar({ t: 'voz-on' }); /* reconectou: reavisa que está na voz */
+    return;
+  }
+  if (d.t === 'canal'){
+    if (d.nome && st.canais.indexOf(d.nome) < 0){
+      st.canais.push(d.nome);
+      renderCanais();
+      bolhaSistema('Canal ' + d.nome + ' criado.');
+    }
     return;
   }
   if (d.t === 'roster'){ aplicarRoster(d.lista); return; }
@@ -274,7 +344,9 @@ function receberEvento(d){
     }
   } else if (d.t === 'msg'){
     garantirRoster(d.pid, d.nome);
-    bolhaMsg(d.nome, d.texto, false);
+    st.log.push({ c: d.c || 'geral', pid: d.pid, nome: d.nome, texto: d.texto, hora: d.hora });
+    if (st.log.length > 600) st.log.shift();
+    if ((d.c || 'geral') === st.canal) bolhaMsg(d.nome, d.texto, false, d.hora);
   } else if (d.t === 'voz-on'){
     var rv = garantirRoster(d.pid, d.nome, d.voz);
     rv.emVoz = true;
@@ -294,10 +366,11 @@ function receberEvento(d){
    ========================================================= */
 function enviar(d){
   d.pid = st.meuPid;
-  d.nome = st.nome;
+  if (d.t === 'canal') d.de = st.nome; /* aqui 'nome' é o nome do canal, não o meu */
+  else d.nome = st.nome;
+  if (d.t === 'msg'){ d.c = st.canal; d.hora = horaAgora(); }
   if (d.t === 'voz-on' || d.t === 'voz-off') d.voz = st.meuId;
   if (st.fonte === 'relay'){
-    if (d.t === 'msg') d.hora = horaAgora();
     try {
       fetch(urlServidor() + '/sala/' + st.codigo + '/msg', {
         method: 'POST',
@@ -373,7 +446,13 @@ function puxarRelay(codigo){
       st.relayOk = true;
       pollFalhas = 0;
       reconTent = 0;
+      if (d.proxima < st.desde){ /* servidor perdeu a memória: tela recomeça limpa */
+        st.desde = 0;
+        st.log = [];
+        $('mensagens').innerHTML = '';
+      }
       st.desde = d.proxima;
+      if (d.canais) atualizarCanais(d.canais);
       for (var i = 0; i < d.eventos.length; i++) receberEvento(d.eventos[i]);
       if ($('lblStatus').textContent === 'reconectando…') atualizarStatus();
       if (st.fonte === 'relay' && st.codigo === codigo) puxarRelay(codigo);
@@ -426,6 +505,13 @@ function abrirSala(codigo, anfitriao){
   $('lblSala').textContent = codigo;
   $('telaEntrada').classList.add('hidden');
   $('sala').classList.remove('hidden');
+  if (st._logSala !== codigo){ /* sala nova: canais e log zerados; reconexão/migração mantém */
+    st.canais = ['geral'];
+    st.canal = 'geral';
+    st.log = [];
+    st._logSala = codigo;
+  }
+  renderCanais();
   erro('');
   bolhaSistema(anfitriao
     ? 'Sala criada! Código: ' + codigo + ' — mande para quem quiser conversar.'
@@ -796,6 +882,8 @@ function enviarTexto(){
   if (!t) return;
   $('txtMsg').value = '';
   bolhaMsg(st.nome, t, true);
+  st.log.push({ c: st.canal, pid: st.meuPid, nome: st.nome, texto: t, hora: horaAgora() });
+  if (st.log.length > 600) st.log.shift();
   enviar({ t: 'msg', texto: t });
 }
 
@@ -837,6 +925,7 @@ $('btnSair').onclick = function (){
   st.fonte = ''; st.codigo = ''; st.isHost = false; st._hist = '';
   st.desde = 0; st.relayOk = false;
   st.senhaHash = ''; st._migrou = false; st._tentP2P = 0;
+  st.log = []; st.canais = ['geral']; st.canal = 'geral'; st._logSala = '';
   $('inSenha').value = '';
   $('mensagens').innerHTML = '';
   $('sala').classList.add('hidden');
@@ -887,7 +976,6 @@ window.addEventListener('beforeunload', function (){
   if (m){ $('inSala').value = m[1].toUpperCase(); $('inNome').focus(); }
   else $('inNome').focus();
 })();
-
 </script>
 </body>
 </html>
