@@ -13,8 +13,8 @@
   }
   input, textarea { -webkit-user-select:text; user-select:text; }
 
-  /* ===== TELA INICIAL ===== */
-  #telaEntrada {
+  /* ===== TELA INICIAL / LOGIN ===== */
+  #telaEntrada, #telaLogin {
     position:fixed; inset:0; z-index:10; background:#0b141a;
     display:flex; align-items:center; justify-content:center; padding:18px;
   }
@@ -36,6 +36,7 @@
   .btnVerde:active { filter:brightness(1.15); }
   .avisoErro { color:#f15c6d; font-size:13px; min-height:16px; margin-top:4px; }
   .dica { color:#8696a0; font-size:12px; margin-top:12px; line-height:1.5; }
+  .lnk { cursor:pointer; text-decoration:underline; }
 
   /* ===== SALA ===== */
   #sala { position:fixed; inset:0; display:flex; flex-direction:column; }
@@ -89,19 +90,39 @@
 </head>
 <body>
 
+<!-- LOGIN / CADASTRO -->
+<div id="telaLogin">
+  <div class="entradaBox">
+    <h1>⚡ ZapZap</h1>
+    <div class="sub">Crie sua conta para conversar</div>
+    <div id="grpCriar">
+      <input id="inLoginEmail" class="campo" maxlength="60" placeholder="E-mail" autocomplete="off">
+      <input id="inLoginNick" class="campo" maxlength="16" placeholder="Nick (nome que aparece no chat)" autocomplete="off">
+    </div>
+    <input id="inLoginQuem" class="campo" maxlength="60" placeholder="Nick ou e-mail" autocomplete="off">
+    <input id="inLoginSenha" class="campo" type="password" maxlength="40" placeholder="Senha" autocomplete="off">
+    <button id="btnLogin" class="btnVerde">Entrar</button>
+    <div id="avisoLogin" class="avisoErro"></div>
+    <div class="dica lnk" id="lnkModo">não tenho conta: criar</div>
+    <div class="dica lnk hidden" id="lnkSemConta">servidor fora do ar — continuar sem conta →</div>
+  </div>
+</div>
+
 <!-- TELA INICIAL -->
-<div id="telaEntrada">
+<div id="telaEntrada" class="hidden">
   <div class="entradaBox">
     <h1>⚡ ZapZap</h1>
     <div class="sub">Chat de texto e voz · entre com um código de sala</div>
     <input id="inNome" class="campo" maxlength="20" placeholder="Seu nome" autocomplete="off">
     <input id="inSala" class="campo" maxlength="6" placeholder="Código da sala (ex.: KP7X2)" autocomplete="off"
            autocapitalize="characters" style="text-transform:uppercase">
+    <input id="inSenha" class="campo" maxlength="20" placeholder="Senha da sala (opcional)" autocomplete="off">
     <button id="btnCriar" class="btnVerde">Criar sala</button>
     <button id="btnEntrar" class="btnVerde secundario">Entrar na sala</button>
     <div id="avisoErro" class="avisoErro"></div>
-    <div class="dica">Crie uma sala e mande o código para quem quiser conversar.
+    <div class="dica">Crie uma sala e mande o código para quem quiser conversar (a senha, se usar, mande por outro meio — o link não leva a senha).
     Quem entra pela voz compartilha o microfone; texto vai para todos da sala.</div>
+    <div class="dica lnk hidden" id="lnkTrocar">sair da conta</div>
   </div>
 </div>
 
@@ -128,8 +149,9 @@
 <script>
 /* =========================================================
    ZapZap — chat de texto e voz
-   Texto: servidor relay próprio (SSE + POST) com histórico;
+   Texto: servidor relay próprio (long-polling + POST) com histórico;
    se ele estiver fora do ar, cai automático para P2P (PeerJS).
+   Contas (email/nick/senha) ficam no servidor; senha opcional por sala.
    Voz: sempre WebRTC em malha completa via PeerJS.
    ========================================================= */
 var $ = function (id) { return document.getElementById(id); };
@@ -145,7 +167,10 @@ var st = {
   emVoz: false, mudo: false, meuStream: null,
   calls: {}, audios: {},
   _hist: '', _querAnfitriao: false,
-  desde: 0, relayOk: false
+  desde: 0, relayOk: false,
+  senhaHash: '',        /* hash da senha da sala (o texto nunca sai daqui) */
+  conta: null,          /* { nick } quando logado */
+  _migrou: false, _tentP2P: 0
 };
 
 /* ---------- utilitários ---------- */
@@ -159,8 +184,15 @@ function horaAgora(){
   var d = new Date();
   return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
 }
-function erro(msg){ $('avisoErro').textContent = msg; }
+function erro(msg){ $('avisoErro').textContent = msg; $('avisoLogin').textContent = msg; }
 function scrollToFim(){ var m = $('mensagens'); m.scrollTop = m.scrollHeight; }
+/* hash da senha da sala: calculado no cliente (djb2 com sal); o servidor só compara */
+function hashSenha(codigo, senha){
+  var s = 'zap:' + codigo + ':' + senha;
+  var h = 5381;
+  for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return 'h' + (h >>> 0).toString(36);
+}
 function urlServidor(){
   if (window.__SERVIDOR__) return window.__SERVIDOR__;
   if (location.origin.indexOf('ytmig.github.io') < 0) return location.origin; /* servido pelo relay */
@@ -295,6 +327,9 @@ function conectar(codigo, anfitriao){
   st.desde = 0;
   st.relayOk = false;
   pollFalhas = 0;
+  reconTent = 0;
+  st._migrou = false;
+  st._tentP2P = 0;
   st.meuPid = 'r' + Math.random().toString(36).slice(2, 10);
   erro('Conectando…');
   if (!window.__SO_P2P__ && window.fetch) conectarRelay(codigo);
@@ -304,29 +339,50 @@ function conectar(codigo, anfitriao){
 /* relay: long-polling — um pedido comum que o servidor responde assim que
    há evento novo (funciona mesmo onde streams/WebSocket são bloqueados) */
 var pollFalhas = 0;
+var reconTent = 0;
 function conectarRelay(codigo){
   st.fonte = 'relay';
   puxarRelay(codigo);
 }
 function puxarRelay(codigo){
-  fetch(urlServidor() + '/sala/' + codigo + '/puxar?id=' + st.meuPid + '&nome=' + encodeURIComponent(st.nome) + '&desde=' + (st.desde || 0))
+  /* se o servidor nem responder à 1ª tentativa em 8s, provavelmente o túnel
+     está travando — aborta e conta como falha fatal (cai para o P2P) */
+  var ctrl = null, abortou = false, tmo = null;
+  if (!st.relayOk && window.AbortController){
+    ctrl = new window.AbortController();
+    tmo = setTimeout(function (){ abortou = true; try { ctrl.abort(); } catch (e) {} }, 8000);
+  }
+  var url = urlServidor() + '/sala/' + codigo + '/puxar?id=' + st.meuPid +
+    '&nome=' + encodeURIComponent(st.nome) + '&desde=' + (st.desde || 0) +
+    (st._querAnfitriao ? '&anfitriao=1' : '') + (st.senhaHash ? '&senha=' + st.senhaHash : '');
+  fetch(url, ctrl ? { signal: ctrl.signal } : undefined)
     .then(function (r){
+      if (tmo){ clearTimeout(tmo); tmo = null; }
+      if (r.status === 403){ /* senha errada: para tudo e avisa */
+        if (st.fonte !== 'relay' || st.codigo !== codigo) return;
+        st.fonte = '';
+        erro('Senha da sala incorreta.');
+        return;
+      }
       if (!r.ok) throw new Error('http ' + r.status);
       return r.json();
     })
     .then(function (d){
+      if (!d) return;
       if (st.fonte !== 'relay' || st.codigo !== codigo) return; /* migrou p/ P2P ou saiu */
       st.relayOk = true;
       pollFalhas = 0;
+      reconTent = 0;
       st.desde = d.proxima;
       for (var i = 0; i < d.eventos.length; i++) receberEvento(d.eventos[i]);
       if ($('lblStatus').textContent === 'reconectando…') atualizarStatus();
       if (st.fonte === 'relay' && st.codigo === codigo) puxarRelay(codigo);
     })
     .catch(function (){
+      if (tmo){ clearTimeout(tmo); tmo = null; }
       if (st.fonte !== 'relay' || st.codigo !== codigo) return;
       if (!st.relayOk){
-        pollFalhas++;
+        if (abortou) pollFalhas = 3; else pollFalhas++;
         if (pollFalhas >= 3){
           erro('Servidor fora do ar — tentando conexão direta…');
           usarPeerJS(codigo, st._querAnfitriao);
@@ -334,6 +390,14 @@ function puxarRelay(codigo){
         }
         setTimeout(function (){ puxarRelay(codigo); }, 500);
       } else {
+        reconTent++;
+        if (reconTent >= 3){ /* servidor caiu no meio da conversa: migra todos para P2P */
+          st._migrou = true;
+          st._tentP2P = 0;
+          bolhaSistema('Servidor caiu — mudando para conexão direta.');
+          usarPeerJS(codigo, st._querAnfitriao);
+          return;
+        }
         $('lblStatus').textContent = 'reconectando…';
         setTimeout(function (){ puxarRelay(codigo); }, 2000);
       }
@@ -344,6 +408,7 @@ function puxarRelay(codigo){
 function usarPeerJS(codigo, anfitriao){
   if (st.fonte === 'peerjs') return;
   st.fonte = 'peerjs';
+  limparPeer();
   if (typeof Peer === 'undefined'){
     erro('A conexão direta não carregou. Recarregue a página e tente de novo.');
     return;
@@ -389,6 +454,7 @@ function tentarAnfitriao(codigo){
   p.on('error', function (err){
     if (err && err.type === 'unavailable-id'){
       limparPeer();
+      st._querAnfitriao = false; /* código ocupado: despromove a cliente */
       entrarComoCliente(codigo);
     } else {
       mostrarErroRede(err);
@@ -404,27 +470,39 @@ function entrarComoCliente(codigo){
   p.on('open', function (id){
     st.meuId = id;
     st.meuPid = id;
-    var conn = p.connect(PREFIXO + codigo, { reliable: true });
-    st.hostConn = conn;
-    conn.on('open', function (){
-      abrirSala(codigo, false);
-      enviar({ t: 'entra' });
-    });
-    conn.on('data', receberDados);
-    conn.on('close', function (){
-      if ($('sala').classList.contains('hidden')) return;
-      desligarVozLocal();
-      st.roster = {};
-      bolhaSistema('A sala foi encerrada pelo anfitrião.');
-      $('lblStatus').textContent = 'sala encerrada';
-    });
-    p.on('call', function (call){ atenderVoz(call); });
+    ligarHost(p, codigo);
   });
+  p.on('call', function (call){ atenderVoz(call); });
   p.on('error', function (err){
-    if (err && err.type === 'peer-unavailable') erro('Sala ' + codigo + ' não encontrada. Confira o código.');
+    if (err && err.type === 'peer-unavailable'){
+      /* na migração o anfitrião pode demorar um pouco mais para aparecer:
+         tenta de novo algumas vezes antes de desistir */
+      if (st._migrou && st._tentP2P < 6){
+        st._tentP2P++;
+        setTimeout(function (){ if (st.fonte === 'peerjs') ligarHost(p, codigo); }, 900);
+        return;
+      }
+      erro('Sala ' + codigo + ' não encontrada. Confira o código.');
+    }
     else mostrarErroRede(err);
   });
   p.on('disconnected', function (){ try { p.reconnect(); } catch (e) {} });
+}
+function ligarHost(p, codigo){
+  var conn = p.connect(PREFIXO + codigo, { reliable: true });
+  st.hostConn = conn;
+  conn.on('open', function (){
+    /* só abre a sala de verdade quando o anfitrião confirmar (sala-ok) */
+    enviar({ t: 'entra', senha: st.senhaHash });
+  });
+  conn.on('data', receberDados);
+  conn.on('close', function (){
+    if ($('sala').classList.contains('hidden')) return;
+    desligarVozLocal();
+    st.roster = {};
+    bolhaSistema('A sala foi encerrada pelo anfitrião.');
+    $('lblStatus').textContent = 'sala encerrada';
+  });
 }
 
 function mostrarErroRede(err){
@@ -441,8 +519,13 @@ function prepararConnHost(conn){
     var d;
     try { d = JSON.parse(bruto); } catch (e) { return; }
     if (d.t === 'entra'){
+      if (st.senhaHash && d.senha !== st.senhaHash){
+        try { conn.send(JSON.stringify({ t: 'senhaErrada' })); } catch (e) {}
+        return;
+      }
       conn.pidParticipante = d.pid;
-      enviarTodos(d, conn); /* os outros primeiro: garantia da bolha lá */
+      try { conn.send(JSON.stringify({ t: 'sala-ok', codigo: st.codigo })); } catch (e) {}
+      enviarTodos({ t: 'entra', pid: d.pid, nome: d.nome }, conn); /* os outros primeiro: garantia da bolha lá */
       receberEvento(d);
       difundirRoster();
       iniciarVozSePronto();
@@ -484,6 +567,15 @@ function difundirRoster(){
 function receberDados(bruto){
   var d;
   try { d = JSON.parse(bruto); } catch (e) { return; }
+  if (d.t === 'senhaErrada'){
+    erro('Senha da sala incorreta.');
+    try { if (st.hostConn) st.hostConn.close(); } catch (e) {}
+    limparPeer();
+    st.hostConn = null;
+    st.fonte = '';
+    st.codigo = '';
+    return;
+  }
   receberEvento(d);
 }
 
@@ -589,6 +681,114 @@ function alternarMudo(){
 }
 
 /* =========================================================
+   CONTAS (cadastro e login antes de entrar)
+   Servidor no ar: conta obrigatória. Servidor fora: modo sem conta.
+   ========================================================= */
+function apiConta(rota, corpo, cb){
+  fetch(urlServidor() + rota, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo || {})
+  })
+    .then(function (r){
+      return r.json().then(
+        function (j){ return { s: r.status, j: j }; },
+        function (){ return { s: r.status, j: {} }; }
+      );
+    })
+    .then(function (x){ cb(null, x.s, x.j); }, function (){ cb(true); });
+}
+var modoConta = 'entrar';
+function mostrarLogin(){
+  $('telaLogin').classList.remove('hidden');
+  $('telaEntrada').classList.add('hidden');
+}
+function entrarTelaPrincipal(conta){
+  st.conta = conta || null;
+  $('telaLogin').classList.add('hidden');
+  $('telaEntrada').classList.remove('hidden');
+  erro('');
+  if (conta){
+    $('inNome').value = conta.nick;
+    $('inNome').readOnly = true;
+    $('lnkTrocar').classList.remove('hidden');
+  } else {
+    $('inNome').readOnly = false;
+    $('lnkTrocar').classList.add('hidden');
+    try { var salvo = localStorage.getItem('zapzap_nome'); if (salvo) $('inNome').value = salvo; } catch (e) {}
+    $('inNome').focus();
+  }
+}
+function atualizarModoLogin(){
+  var criar = modoConta === 'criar';
+  if (criar){ $('grpCriar').classList.remove('hidden'); $('inLoginQuem').classList.add('hidden'); }
+  else { $('grpCriar').classList.add('hidden'); $('inLoginQuem').classList.remove('hidden'); }
+  $('btnLogin').textContent = criar ? 'Criar conta' : 'Entrar';
+  $('lnkModo').textContent = criar ? 'já tenho conta: entrar' : 'não tenho conta: criar';
+  erro('');
+}
+function sessaoIniciada(j){
+  st.conta = { nick: j.nick };
+  try { localStorage.setItem('zapzap_login', JSON.stringify({ nick: j.nick, token: j.token })); } catch (e) {}
+  entrarTelaPrincipal(st.conta);
+}
+function semContaAgora(){ /* servidor inacessível: entra direto, sem exigir conta */
+  entrarTelaPrincipal(null);
+  try {
+    var c = JSON.parse(localStorage.getItem('zapzap_login') || 'null');
+    if (c && c.nick) $('inNome').value = c.nick;
+  } catch (e) {}
+}
+$('btnLogin').onclick = function (){
+  var senha = $('inLoginSenha').value;
+  if (modoConta === 'criar'){
+    var email = $('inLoginEmail').value.replace(/^\s+|\s+$/g, '');
+    var nick = $('inLoginNick').value.replace(/^\s+|\s+$/g, '');
+    if (!email || email.indexOf('@') < 1){ erro('Digite um e-mail válido.'); $('inLoginEmail').focus(); return; }
+    if (nick.length < 2 || nick.length > 16){ erro('Nick deve ter de 2 a 16 letras.'); $('inLoginNick').focus(); return; }
+    if (senha.length < 4){ erro('Senha deve ter pelo menos 4 caracteres.'); $('inLoginSenha').focus(); return; }
+    apiConta('/conta/criar', { email: email, nick: nick, senha: senha }, function (falha, status, j){
+      if (falha){
+        erro('Servidor fora do ar — sem cadastro agora. Dá para continuar sem conta abaixo.');
+        $('lnkSemConta').classList.remove('hidden');
+        return;
+      }
+      if (status === 200 && j && j.ok) sessaoIniciada(j);
+      else if (j && j.erro === 'nick') erro('Esse nick já está em uso. Escolha outro.');
+      else if (j && j.erro === 'email') erro('Esse e-mail já tem conta. Faça login.');
+      else erro('Dados inválidos — confira e-mail, nick (2–16) e senha (4+).');
+    });
+  } else {
+    var quem = $('inLoginQuem').value.replace(/^\s+|\s+$/g, '');
+    if (!quem){ erro('Digite seu nick ou e-mail.'); $('inLoginQuem').focus(); return; }
+    if (!senha){ erro('Digite sua senha.'); $('inLoginSenha').focus(); return; }
+    apiConta('/conta/entrar', { quem: quem, senha: senha }, function (falha, status, j){
+      if (falha){
+        erro('Servidor fora do ar — sem login agora. Dá para continuar sem conta abaixo.');
+        $('lnkSemConta').classList.remove('hidden');
+        return;
+      }
+      if (status === 200 && j && j.ok) sessaoIniciada(j);
+      else if (j && j.erro === 'conta') erro('Conta não encontrada — confira nick ou e-mail.');
+      else if (j && j.erro === 'senha') erro('Senha incorreta.');
+      else erro('Não consegui verificar a conta. Tente de novo.');
+    });
+  }
+};
+$('lnkModo').onclick = function (){
+  modoConta = modoConta === 'criar' ? 'entrar' : 'criar';
+  atualizarModoLogin();
+};
+$('lnkSemConta').onclick = function (){ entrarTelaPrincipal(null); };
+$('lnkTrocar').onclick = function (){
+  try { localStorage.removeItem('zapzap_login'); } catch (e) {}
+  st.conta = null;
+  $('inLoginSenha').value = '';
+  mostrarLogin();
+  atualizarModoLogin();
+};
+
+/* =========================================================
    INTERFACE
    ========================================================= */
 function enviarTexto(){
@@ -602,10 +802,13 @@ function enviarTexto(){
 function comecar(anfitriao){
   var nome = $('inNome').value.replace(/^\s+|\s+$/g, '');
   var codigo = $('inSala').value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  var senha = $('inSenha').value;
   if (!nome){ erro('Digite seu nome.'); $('inNome').focus(); return; }
   if (!anfitriao && codigo.length < 4){ erro('Digite o código da sala (4+ caracteres).'); $('inSala').focus(); return; }
   st.nome = nome;
-  conectar(anfitriao ? (codigo.length >= 4 ? codigo : gerarCodigo()) : codigo, anfitriao);
+  var cod = anfitriao ? (codigo.length >= 4 ? codigo : gerarCodigo()) : codigo;
+  st.senhaHash = senha ? hashSenha(cod, senha) : '';
+  conectar(cod, anfitriao);
   $('btnCriar').disabled = true; $('btnEntrar').disabled = true;
   setTimeout(function (){ $('btnCriar').disabled = false; $('btnEntrar').disabled = false; }, 2500);
 }
@@ -633,6 +836,8 @@ $('btnSair').onclick = function (){
   st.conns = []; st.hostConn = null; st.roster = {};
   st.fonte = ''; st.codigo = ''; st.isHost = false; st._hist = '';
   st.desde = 0; st.relayOk = false;
+  st.senhaHash = ''; st._migrou = false; st._tentP2P = 0;
+  $('inSenha').value = '';
   $('mensagens').innerHTML = '';
   $('sala').classList.add('hidden');
   $('telaEntrada').classList.remove('hidden');
@@ -655,8 +860,28 @@ window.addEventListener('beforeunload', function (){
   } catch (e) {}
 });
 
-/* ---------- inicialização ---------- */
-try { var salvo = localStorage.getItem('zapzap_nome'); if (salvo) $('inNome').value = salvo; } catch (e) {}
+/* ---------- inicialização: sessão ---------- */
+(function iniciarSessao(){
+  var creds = null;
+  try { creds = JSON.parse(localStorage.getItem('zapzap_login') || 'null'); } catch (e) {}
+  function verificado(falha, status, j){
+    if (falha){ semContaAgora(); return; }
+    if (status === 200 && j && j.ok) sessaoIniciada(j);
+    else {
+      try { localStorage.removeItem('zapzap_login'); } catch (e) {}
+      mostrarLogin();
+    }
+  }
+  if (creds && creds.nick && creds.token){
+    apiConta('/conta/entrar', { quem: creds.nick, token: creds.token }, verificado);
+    return;
+  }
+  fetch(urlServidor() + '/saudavel')
+    .then(
+      function (r){ if (r.ok) mostrarLogin(); else semContaAgora(); },
+      semContaAgora
+    );
+})();
 (function (){
   var m = location.search.match(/[?&]sala=([A-Za-z0-9]{3,8})/);
   if (m){ $('inSala').value = m[1].toUpperCase(); $('inNome').focus(); }
